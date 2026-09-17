@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep House — Title</title>
+<!--
+  title.html — the SHOWCASE FRONT DOOR. A Game-Boy-shaped title menu over a
+  generative world: up/down move the cursor, A = enter, B = back. Keyboard,
+  on-screen d-pad + A/B, and click all drive the same engine.
+
+  Self-contained (idiom of organisms.html / crowd-lab.html): no build, no deps,
+  opens on file:// or :8800. Firewall-safe — on screen you'll only ever see the
+  title, action chrome, feeling-words, and math. Never prose about anyone.
+
+  The world behind the menu is one living phyllotaxis field (the golden angle,
+  hidden as maths) slowly winding — "the generative narration makes the world."
+  START zooms into that world and holds on a seam for the next scene.
+-->
+<style>
+  :root{
+    color-scheme: dark;
+    --bg0:#0a0f20; --bg1:#04050b;
+    --ink:#e7edfb; --dim:#94a0c2; --line:rgba(150,170,220,.20);
+    --gold:#f2c94c; --teal:#35d0c0; --violet:#8a6cff; --rose:#ff6f91; --green:#43d17a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg1);color:var(--ink);
+    font:16px/1.4 'Segoe UI',system-ui,sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  #stage{position:fixed;inset:0;display:block;width:100%;height:100%}
+
+  /* ── on-screen Game-Boy controls (bottom); keyboard mirrors these ── */
+  #pad{position:fixed;left:0;right:0;bottom:0;height:150px;display:flex;
+    align-items:center;justify-content:space-between;padding:0 28px 22px;
+    pointer-events:none}
+  #pad .cluster{pointer-events:auto}
+  .dpad{position:relative;width:120px;height:120px}
+  .dbtn{position:absolute;width:40px;height:40px;background:#141a2c;
+    border:1px solid #2a3350;color:#9fb0d0;display:flex;align-items:center;
+    justify-content:center;font-size:18px;border-radius:8px;cursor:pointer;
+    transition:.08s}
+  .dbtn:active,.dbtn.on{background:#26304e;color:#fff;border-color:var(--teal)}
+  .dbtn.up{left:40px;top:0}.dbtn.down{left:40px;top:80px}
+  .dbtn.left{left:0;top:40px}.dbtn.right{left:80px;top:40px}
+  .dbtn.mid{left:40px;top:40px;background:#0c1120;border-color:#1c2540;cursor:default}
+  .ab{display:flex;gap:20px;align-items:center}
+  .rbtn{width:64px;height:64px;border-radius:50%;background:#141a2c;
+    border:2px solid #2a3350;color:#cdd7ef;font:800 22px system-ui;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:.08s}
+  .rbtn.a{border-color:var(--rose);color:var(--rose);transform:translateY(-12px)}
+  .rbtn.b{border-color:var(--violet);color:var(--violet)}
+  .rbtn:active,.rbtn.on{background:#26304e;filter:brightness(1.4)}
+  .lbl{font-size:11px;color:var(--dim);letter-spacing:.15em;text-align:center;margin-top:4px}
+  @media (max-width:520px){ .rbtn{width:56px;height:56px} }
+</style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div id="pad">
+    <div class="cluster">
+      <div class="dpad">
+        <div class="dbtn up"    data-key="up">▲</div>
+        <div class="dbtn down"  data-key="down">▼</div>
+        <div class="dbtn left"  data-key="left">◀</div>
+        <div class="dbtn right" data-key="right">▶</div>
+        <div class="dbtn mid"></div>
+      </div>
+    </div>
+    <div class="cluster ab">
+      <div style="text-align:center">
+        <div class="rbtn b" data-key="b">B</div><div class="lbl">BACK</div>
+      </div>
+      <div style="text-align:center">
+        <div class="rbtn a" data-key="a">A</div><div class="lbl">ENTER</div>
+      </div>
+    </div>
+  </div>
+
+<!-- guarded Hue client: /api/* via serve.py → the C# app. No-ops (never throws)
+     when opened on file:// or with the lamps offline, so the showcase always runs. -->
+<script src="hue.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  /* ══ palette + tiny draw helpers (house tokens) ═══════════════════════════ */
+  var C = { bg0:"#0a0f20", bg1:"#04050b", ink:"#e7edfb", dim:"#94a0c2",
+            gold:"#f2c94c", teal:"#35d0c0", violet:"#8a6cff", rose:"#ff6f91", green:"#43d17a" };
+  var HUES = [C.gold, C.teal, C.violet, C.rose, C.green];
+
+  // firewall-safe: feelings carried, never prose about people
+  var FEELINGS = ["awake","curious","tender","alive","open","quiet","adrift",
+                  "warm","held","bright","becoming","drawn in"];
+
+  /* ══ the pure-ish menu engine (a Game-Boy title: cursor + A/B) ════════════ */
+  // Items are data; add/rename freely. `go` is what A does on that item.
+  var MENU = [
+    { id:"start", label:"START", go:function(){ transitionInto(); } }
+    // room to grow: { id:"lights", label:"LIGHTS", go:… }, { id:"about", label:"THE HOUSE", go:… }
+  ];
+  var S = {
+    cur: 0,                 // cursor index
+    phase: "title",         // title | entering | ready
+    t: 0,                   // world time (s)
+    enterT: 0,              // transition clock
+    feel: 0, feelAt: 0,     // drifting feeling-word
+    press: {}               // control-flash state for the on-screen pad
+  };
+
+  function move(d){ if (S.phase!=="title") return;
+    S.cur = (S.cur + d + MENU.length) % MENU.length; }
+  function enter(){
+    if (S.phase==="title"){ MENU[S.cur].go(); }
+    else if (S.phase==="ready"){ /* seam for the next scene — placeholder A */ }
+  }
+  function back(){ if (S.phase!=="title"){ S.phase="title"; S.enterT=0; S.flashT=0; RD.live=false; RD.V=null; } }
+
+  function transitionInto(){ S.phase="entering"; S.enterT=0; S.flashT=0; RD.ignite();
+    // dispatch a seam other code (or the next jam step) can hook
+    try{ window.dispatchEvent(new CustomEvent("dh-title-start")); }catch(e){}
+  }
+
+  /* ══ input: keyboard + on-screen pad, all into the one engine ═════════════ */
+  var KEYMAP = {
+    ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right",
+    Enter:"a", z:"a", Z:"a", " ":"a",
+    Backspace:"b", Escape:"b", x:"b", X:"b"
+  };
+  function act(k){
+    S.press[k] = 1;                    // flash the matching on-screen button
+    if (S.phase!=="title"){            // past the title, only the maze steers + B backs out
+      if (S.phase==="maze"){
+        if (k==="up") MAZE.move(0,-1);
+        else if (k==="down") MAZE.move(0,1);
+        else if (k==="left") MAZE.move(-1,0);
+        else if (k==="right") MAZE.move(1,0);
+      }
+      if (k==="b") back();
+      return;
+    }
+    if (k==="up") move(-1);
+    else if (k==="down") move(1);
+    else if (k==="left") move(-1);
+    else if (k==="right") move(1);
+    else if (k==="a") enter();
+    else if (k==="b") back();
+  }
+  window.addEventListener("keydown", function(e){
+    var k = KEYMAP[e.key]; if (!k) return; e.preventDefault(); act(k);
+    var el = document.querySelector('[data-key="'+k+'"]'); if (el){ el.classList.add("on");
+      setTimeout(function(){ el.classList.remove("on"); }, 110); }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-key]"), function(el){
+    el.addEventListener("pointerdown", function(ev){ ev.preventDefault(); act(el.dataset.key); });
+  });
+
+  /* ══ render ═══════════════════════════════════════════════════════════════ */
+  var cv = document.getElementById("stage"), X = cv.getContext("2d");
+  var DPR = Math.min(window.devicePixelRatio||1, 2), W=0, Hh=0;
+  function fit(){ var r=cv.getBoundingClientRect(); W=r.width; Hh=r.height;
+    cv.width=Math.round(W*DPR); cv.height=Math.round(Hh*DPR); X.setTransform(DPR,0,0,DPR,0,0); }
+  window.addEventListener("resize", fit); fit();
+
+  var GOLD = Math.PI * (3 - Math.sqrt(5));   // ~137.5°, the golden angle — the world's seed, hidden
+
+  function text(s,x,y,size,color,weight,align,alpha){
+    X.save(); X.globalAlpha = alpha==null?1:alpha;
+    X.fillStyle=color; X.textAlign=align||"center"; X.textBaseline="middle";
+    X.font=(weight||600)+" "+size+"px 'Segoe UI',system-ui,sans-serif";
+    X.fillText(s,x,y); X.restore();
+  }
+
+  /* ══ the BOOM: a Gray–Scott reaction-diffusion that ignites on START ═══════
+     Same chemistry as symmetry.js exhibit #59 — two chemicals, one feeds and
+     one decays; f/k tuned to the replicating-spot regime so a single central
+     seed multiplies outward like a chain reaction, brightest at the front. It
+     grows until it floods the frame, white-flashes ("breaks the screen"), then
+     idles faintly behind the open seam. Clamped edges so it piles up and fills. */
+  function mixHex(a,b,t){
+    var pa=[parseInt(a.slice(1,3),16),parseInt(a.slice(3,5),16),parseInt(a.slice(5,7),16)];
+    var pb=[parseInt(b.slice(1,3),16),parseInt(b.slice(3,5),16),parseInt(b.slice(5,7),16)];
+    return "rgb("+((pa[0]+(pb[0]-pa[0])*t)|0)+","+((pa[1]+(pb[1]-pa[1])*t)|0)+","+((pa[2]+(pb[2]-pa[2])*t)|0)+")";
+  }
+  function hot(v){  // violet → teal → gold → white core (the nuclear front)
+    v = v<0?0:v>1?1:v;
+    if (v<0.34) return mixHex(C.violet, C.teal, v/0.34);
+    if (v<0.68) return mixHex(C.teal, C.gold, (v-0.34)/0.34);
+    return mixHex(C.gold, "#ffffff", (v-0.68)/0.32);
+  }
+  var RD = {
+    GW:0, GH:0, U:null, V:null, live:false,
+    ignite:function(){
+      var GW = this.GW = 120, GH = this.GH = Math.max(20, Math.round(120*Hh/W));
+      var LEN = GW*GH;
+      var U = this.U = new Float32Array(LEN); U.fill(1);
+      var V = this.V = new Float32Array(LEN);
+      var cx = GW/2, cy = GH/2;   // ignite where the menu was — screen centre
+      for (var y=0;y<GH;y++) for (var x=0;x<GW;x++){
+        if ((x-cx)*(x-cx)+(y-cy)*(y-cy) < 9){ V[y*GW+x]=1; U[y*GW+x]=0; }
+      }
+      this.live = true; this.cover = 0;
+    },
+    step:function(iters){
+      if (!this.live) return;
+      var GW=this.GW, GH=this.GH, LEN=GW*GH, U=this.U, V=this.V;
+      var f=0.037, k=0.060, Du=0.19, Dv=0.09;   // replicating-spot regime = chain reaction
+      for (var it=0; it<iters; it++){
+        var nu = new Float32Array(LEN), nv = new Float32Array(LEN), cover=0;
+        for (var y=0;y<GH;y++) for (var x=0;x<GW;x++){
+          var i=y*GW+x;
+          var xm=x>0?x-1:0, xp=x<GW-1?x+1:GW-1, ym=y>0?y-1:0, yp=y<GH-1?y+1:GH-1;  // clamped edges
+          var lu = U[y*GW+xm]+U[y*GW+xp]+U[ym*GW+x]+U[yp*GW+x]-4*U[i];
+          var lv = V[y*GW+xm]+V[y*GW+xp]+V[ym*GW+x]+V[yp*GW+x]-4*V[i];
+          var uvv = U[i]*V[i]*V[i];
+          nu[i] = U[i] + (Du*lu - uvv + f*(1-U[i]));
+          var vv = V[i] + (Dv*lv + uvv - (f+k)*V[i]);
+          nv[i] = vv; if (vv>0.15) cover++;
+        }
+        this.U=U=nu; this.V=V=nv; this.cover = cover/LEN;
+      }
+    },
+    draw:function(alpha){
+      if (!this.V) return;
+      var GW=this.GW, GH=this.GH, V=this.V, cw=W/GW, ch=Hh/GH;
+      X.save(); X.globalCompositeOperation="lighter";
+      for (var y=0;y<GH;y++) for (var x=0;x<GW;x++){
+        var v=V[y*GW+x]; if (v<0.1) continue;
+        var b = v<0?0:v>1?1:v;
+        X.fillStyle = hot(b*1.5);
+        X.globalAlpha = (0.12 + 0.85*b) * alpha;
+        X.fillRect(x*cw, y*ch, cw+1, ch+1);
+      }
+      X.restore(); X.globalAlpha=1;
+    }
+  };
+
+  /* ══ the MAZE: carved out of the reaction texture, walked to the exit ══════
+     A perfect maze (recursive backtracker → always exactly one solvable path,
+     never a dead puzzle) rendered in orange, its walls lit by the frozen
+     reaction field behind them so it reads as "carved from that texture."
+     Start top-left, exit bottom-right; reaching it opens the way through. */
+  var ORANGE = "#ff7a2c";
+  function rdAt(x,y){                    // sample the frozen reaction under a pixel
+    if (!RD.V) return 0;
+    var gx = Math.min(RD.GW-1, Math.max(0,(x/W*RD.GW)|0));
+    var gy = Math.min(RD.GH-1, Math.max(0,(y/Hh*RD.GH)|0));
+    return RD.V[gy*RD.GW+gx] || 0;
+  }
+  var MAZE = {
+    cols:0, rows:0, cell:0, x0:0, y0:0, walls:null,
+    player:{c:0,r:0,px:0,py:0}, goal:{c:0,r:0}, bloom:0,
+    gen:function(){
+      var pad=42, top=Hh*0.16, bottom=170;               // clear of prompt + the on-screen pad
+      var aw=W-pad*2, ah=Hh-top-bottom;
+      var cell=72;                                        // ~satisfying stride; small maze
+      var cols=Math.max(6, Math.min(16, Math.floor(aw/cell)));
+      var rows=Math.max(4, Math.min(11, Math.floor(ah/cell)));
+      cell=Math.min(aw/cols, ah/rows);
+      this.cols=cols; this.rows=rows; this.cell=cell;
+      this.x0=(W-cols*cell)/2; this.y0=top+(ah-rows*cell)/2;
+
+      // a random finish corner (0=TL 1=TR 2=BL 3=BR); start from the opposite corner
+      // so every run is a real traverse and the exit corner drives which arm unlocks.
+      var corners=[[0,0],[cols-1,0],[0,rows-1],[cols-1,rows-1]];
+      this.goalCorner=(Math.random()*4)|0;
+      var gc=corners[this.goalCorner], sc=corners[3-this.goalCorner];
+      var startIdx=sc[1]*cols+sc[0];
+
+      var n=cols*rows, walls=new Array(n);
+      for (var i=0;i<n;i++) walls[i]={n:1,e:1,s:1,w:1};
+      var vis=new Uint8Array(n), st=[startIdx]; vis[startIdx]=1;
+      while (st.length){
+        var cur=st[st.length-1], c=cur%cols, r=(cur/cols)|0, opts=[];
+        if (r>0     && !vis[cur-cols]) opts.push([cur-cols,"n","s"]);
+        if (c<cols-1&& !vis[cur+1])    opts.push([cur+1,"e","w"]);
+        if (r<rows-1&& !vis[cur+cols]) opts.push([cur+cols,"s","n"]);
+        if (c>0     && !vis[cur-1])    opts.push([cur-1,"w","e"]);
+        if (!opts.length){ st.pop(); continue; }
+        var pick=opts[(Math.random()*opts.length)|0];
+        walls[cur][pick[1]]=0; walls[pick[0]][pick[2]]=0;  // knock the shared wall both ways
+        vis[pick[0]]=1; st.push(pick[0]);
+      }
+      this.walls=walls;
+      this.player={c:sc[0],r:sc[1]}; var p=this.center(sc[0],sc[1]); this.player.px=p.x; this.player.py=p.y;
+      this.goal={c:gc[0],r:gc[1]}; this.bloom=0;
+    },
+    center:function(c,r){ return { x:this.x0+c*this.cell+this.cell/2, y:this.y0+r*this.cell+this.cell/2 }; },
+    move:function(dc,dr){
+      if (S.phase!=="maze") return;
+      var c=this.player.c, r=this.player.r, dir=dc<0?"w":dc>0?"e":dr<0?"n":"s";
+      if (this.walls[r*this.cols+c][dir]) return;         // a wall — blocked
+      this.player.c=c+dc; this.player.r=r+dr;
+      if (this.player.c===this.goal.c && this.player.r===this.goal.r){
+        S.phase="solved"; S.solveT=0;
+        try{ window.dispatchEvent(new CustomEvent("dh-maze-solved")); }catch(e){}
+      }
+    },
+    update:function(dt){
+      var t=this.center(this.player.c,this.player.r), k=1-Math.exp(-dt*15);  // glide to the cell
+      this.player.px += (t.x-this.player.px)*k; this.player.py += (t.y-this.player.py)*k;
+      if (S.phase==="solved") this.bloom=Math.min(1,this.bloom+dt*1.4);
+    },
+    draw:function(){
+      var cols=this.cols, rows=this.rows, cell=this.cell, x0=this.x0, y0=this.y0, walls=this.walls;
+      if (!walls) return;
+      X.save(); X.lineCap="round"; X.lineWidth=Math.max(2.4, cell*0.10);
+      X.shadowColor="rgba(255,122,44,.55)"; X.shadowBlur=cell*0.28;
+      for (var r=0;r<rows;r++) for (var c=0;c<cols;c++){
+        var w=walls[r*cols+c], cx=x0+c*cell, cy=y0+r*cell;
+        function seg(ax,ay,bx,by){
+          var v=rdAt((ax+bx)/2,(ay+by)/2);
+          X.strokeStyle=mixHex(ORANGE,"#ffe0a0",Math.min(1,v*1.6));
+          X.globalAlpha=0.55+0.45*Math.min(1,v*1.6);
+          X.beginPath(); X.moveTo(ax,ay); X.lineTo(bx,by); X.stroke();
+        }
+        if (w.n) seg(cx,cy,cx+cell,cy);
+        if (w.w) seg(cx,cy,cx,cy+cell);
+        if (c===cols-1 && w.e) seg(cx+cell,cy,cx+cell,cy+cell);
+        if (r===rows-1 && w.s) seg(cx,cy+cell,cx+cell,cy+cell);
+      }
+      X.restore();
+
+      // the exit — a pulsing orange gate
+      var g=this.center(this.goal.c,this.goal.r), pr=cell*(0.26+0.05*Math.sin(S.t*4));
+      X.save(); X.shadowColor="rgba(255,150,60,.8)"; X.shadowBlur=cell*0.6;
+      X.strokeStyle="#ffb266"; X.lineWidth=3; X.globalAlpha=0.9;
+      X.beginPath(); X.arc(g.x,g.y,pr,0,7); X.stroke(); X.restore();
+
+      // the player — a bright mote you push through
+      X.save(); X.shadowColor="rgba(255,255,255,.9)"; X.shadowBlur=cell*0.7;
+      X.fillStyle="#fff6df";
+      X.beginPath(); X.arc(this.player.px,this.player.py,cell*0.24,0,7); X.fill(); X.restore();
+
+      // the YELLOW ORB rests under the exit while it holds still (the seed of the arm to come)
+      if (S.phase==="solved"){
+        X.save(); X.globalCompositeOperation="lighter";
+        X.shadowColor="rgba(255,210,74,.9)"; X.shadowBlur=cell*0.9; X.fillStyle="#ffd24a";
+        X.beginPath(); X.arc(g.x,g.y,cell*0.30,0,7); X.fill(); X.restore();
+      }
+
+      // solve bloom over the gate
+      if (this.bloom>0){
+        X.save(); X.globalCompositeOperation="lighter";
+        X.fillStyle="#ffd27a"; X.globalAlpha=this.bloom*0.9;
+        X.beginPath(); X.arc(g.x,g.y,cell*this.bloom*3,0,7); X.fill(); X.restore();
+      }
+    }
+  };
+
+  /* ══ the NUCLEUS: solving the maze wakes ONE arm ═══════════════════════════
+     Four corners beam inward; orbs stream to a central core. The three arms
+     are dim/locked; the arm at the corner you finished in is UNLOCKED — it
+     glows and BREATHES on a slow pulse, orbs flowing corner→core along it.
+     The breath is a stand-in tempo here; wire it to real party/lamp energy
+     (GlobalEnergy / a pendulum on /party.html + dashboard) as a later hook. */
+  // the "Drift" combination, read from research/pics/purple green attractor.jpg:
+  // a magenta core, arms bleeding green→teal, purple ground. (Atlas "Drift" is a
+  // generated-scheme word; this pins the exact combo from the reference.)
+  var DRIFT = { core:"#f2c0ff", magenta:"#c86bff", purple:"#8a4bd6",
+                green:"#4fd08a", teal:"#4fb0e8", dim:"#4a2f8a" };
+  function driftAt(ang){                 // angle around centre → magenta / green / teal cycle
+    var u=((ang/(Math.PI*2))%1+1)%1;
+    if (u<0.34) return mixHex(DRIFT.magenta, DRIFT.green, u/0.34);
+    if (u<0.68) return mixHex(DRIFT.green, DRIFT.teal, (u-0.34)/0.34);
+    return mixHex(DRIFT.teal, DRIFT.magenta, (u-0.68)/0.32);
+  }
+
+  var NUC = {
+    arm:0, t:0,
+    init:function(corner){ this.arm=corner; this.t=0; },
+    draw:function(dt){
+      this.t += dt;
+      var cx=W/2, cy=Hh/2, cs=[[0,0],[W,0],[0,Hh],[W,Hh]];
+      var breath = 0.5 + 0.5*Math.sin(this.t*Math.PI*2*0.33);   // ~one breath / 3s ← party energy later
+
+      for (var i=0;i<4;i++){
+        var corner=cs[i], on=(i===this.arm);
+        X.save();
+        if (on){
+          X.strokeStyle=DRIFT.magenta; X.lineWidth=3+7*breath; X.globalAlpha=0.55+0.45*breath;
+          X.shadowColor="rgba(200,107,255,.85)"; X.shadowBlur=18+34*breath;
+        } else {
+          X.strokeStyle=DRIFT.dim; X.lineWidth=1.5; X.globalAlpha=0.16;
+        }
+        X.beginPath(); X.moveTo(cx,cy); X.lineTo(corner[0],corner[1]); X.stroke();
+        X.restore();
+
+        if (on){                                   // orbs streaming corner → core
+          for (var b=0;b<4;b++){
+            var frac=((this.t*0.35)+b/4)%1;          // 0 at corner → 1 at core
+            var ox=corner[0]+(cx-corner[0])*frac, oy=corner[1]+(cy-corner[1])*frac;
+            X.save(); X.globalCompositeOperation="lighter";
+            X.fillStyle=DRIFT.core; X.shadowColor="rgba(240,192,255,.9)"; X.shadowBlur=20;
+            X.globalAlpha=0.75*(0.35+0.65*frac);
+            X.beginPath(); X.arc(ox,oy,5+7*frac,0,7); X.fill(); X.restore();
+          }
+        }
+      }
+
+      // the breathing core (the nucleus)
+      var coreR=Math.min(W,Hh)*(0.05+0.03*breath);
+      X.save(); X.globalCompositeOperation="lighter";
+      var grd=X.createRadialGradient(cx,cy,0,cx,cy,coreR*2.6);
+      grd.addColorStop(0,"#ffffff"); grd.addColorStop(0.35,DRIFT.core);
+      grd.addColorStop(0.7,DRIFT.magenta); grd.addColorStop(1,"rgba(138,75,214,0)");
+      X.fillStyle=grd; X.beginPath(); X.arc(cx,cy,coreR*2.6,0,7); X.fill(); X.restore();
+    }
+  };
+
+  /* ══ the FLOW FIELD + roving ATTRACTOR (the "Drift" reference) ══════════════
+     Particles orbit the nucleus on a rotational field, leaving fading streaks
+     coloured by the Drift cycle. An attractor point circles the field (around)
+     while its radius breathes (in and out), tugging particles as it passes and
+     dragging a bright lance — the beam lancing into the core in the picture.
+     The nucleus arms sit within this field; the flow reads as feeding them. */
+  var FLOW = {
+    P:null, N:280, attr:{x:0,y:0,px:0,py:0}, t:0,
+    init:function(){
+      var cx=W/2, cy=Hh/2, base=Math.min(W,Hh);
+      this.P=[];
+      for (var i=0;i<this.N;i++){
+        var a=Math.random()*Math.PI*2, r=base*(0.1+Math.random()*0.45);
+        this.P.push({ x:cx+Math.cos(a)*r, y:cy+Math.sin(a)*r, h:[] });
+      }
+      this.t=0; this.attr.x=cx; this.attr.y=cy; this.attr.px=cx; this.attr.py=cy;
+    },
+    step:function(dt){
+      this.t+=dt; var cx=W/2, cy=Hh/2, base=Math.min(W,Hh);
+      // attractor: circles the field (around) with a breathing radius (in and out)
+      var th=this.t*0.55, R=base*(0.14+0.32*(0.5+0.5*Math.sin(this.t*0.33)));
+      this.attr.px=this.attr.x; this.attr.py=this.attr.y;
+      this.attr.x=cx+Math.cos(th)*R; this.attr.y=cy+Math.sin(th)*R;
+      var A=this.attr;
+      for (var i=0;i<this.P.length;i++){
+        var p=this.P[i], dx=p.x-cx, dy=p.y-cy, d=Math.hypot(dx,dy)||1;
+        var tx=-dy/d, ty=dx/d, spd=base*0.35*dt;      // tangential orbit
+        var vx=tx*spd, vy=ty*spd;
+        var ring=base*0.28, pull=(ring-d)*0.7*dt;      // ease toward an orbit ring
+        vx+=dx/d*pull; vy+=dy/d*pull;
+        var adx=A.x-p.x, ady=A.y-p.y, ad=Math.hypot(adx,ady)||1;   // attractor tug
+        var af=Math.min(1,(base*0.22)/ad)*base*0.14*dt;
+        vx+=adx/ad*af; vy+=ady/ad*af;
+        p.x+=vx; p.y+=vy;
+        if (d>base*0.72){ var a=Math.random()*Math.PI*2; p.x=cx+Math.cos(a)*base*0.18; p.y=cy+Math.sin(a)*base*0.18; p.h.length=0; }
+        p.h.push(p.x,p.y); if (p.h.length>18) p.h.splice(0,2);
+      }
+    },
+    drawField:function(){
+      var cx=W/2, cy=Hh/2;
+      X.save(); X.globalCompositeOperation="lighter"; X.lineCap="round";
+      for (var i=0;i<this.P.length;i++){
+        var p=this.P[i], h=p.h; if (h.length<6) continue;
+        X.strokeStyle=driftAt(Math.atan2(p.y-cy,p.x-cx));
+        for (var j=2;j<h.length;j+=2){
+          var a=j/h.length;                              // brighter toward the head
+          X.globalAlpha=0.04+0.34*a; X.lineWidth=0.5+1.8*a;
+          X.beginPath(); X.moveTo(h[j-2],h[j-1]); X.lineTo(h[j],h[j+1]); X.stroke();
+        }
+      }
+      X.restore(); X.globalAlpha=1;
+    },
+    drawAttractor:function(){
+      var A=this.attr, vx=A.x-A.px, vy=A.y-A.py;         // lance along its motion
+      X.save(); X.globalCompositeOperation="lighter";
+      X.strokeStyle=DRIFT.core; X.globalAlpha=0.55; X.lineWidth=2;
+      X.shadowColor="rgba(240,192,255,.9)"; X.shadowBlur=26;
+      X.beginPath(); X.moveTo(A.x-vx*10, A.y-vy*10); X.lineTo(A.x, A.y); X.stroke();
+      X.fillStyle="#ffffff"; X.globalAlpha=0.95;
+      X.beginPath(); X.arc(A.x,A.y,5,0,7); X.fill();
+      X.restore(); X.globalAlpha=1;
+    }
+  };
+
+  /* ══ THE ROOM BREATHES: drive the physical lamps from the nucleus breath ═══
+     Two couplings, both guarded (silent on file:// / lamps offline):
+       • whole-room breathe  → Hue.energy(b)  — the party "lamp energy" business.
+       • pulse OUTWARD from the core → a single Drift point at room-centre on
+         /api/effects/field whose RADIUS grows on the breath, so lamps light
+         from the middle out (needs an ambient running to attach to, and the
+         C# app on feature/party-installation — /api/energy + /api/effects/field
+         both live there). Tonight: start the C# app + serve.py, open this over
+         :8800 with the party ambient running, then run to the nucleus. */
+  var LIGHTS = {
+    started:false, lastE:-1, tField:0,
+    begin:function(){
+      if (this.started) return; this.started=true;
+      if (window.Hue && Hue.startStatusPoll) Hue.startStatusPoll();   // self-healing online dot
+    },
+    breathe:function(b, dt){
+      if (!window.Hue || Hue.online===false) return;                  // offline → don't hammer
+      var e = 0.42 + 0.55*b;                                          // never fully dark
+      if (Math.abs(e-this.lastE) > 0.02){ Hue.energy(e); this.lastE=e; }
+      this.tField += dt;
+      if (this.tField > 0.14){                                        // ~7 Hz, not per-frame
+        this.tField = 0;
+        Hue.req("/effects/field", { method:"POST", body:{
+          intensity: 0.4 + 0.6*b,
+          points: [ { x:0, y:0, color:DRIFT.magenta, radius:0.30+0.70*b, falloff:0.65, intensity:1 } ]
+        }});
+      }
+    }
+  };
+
+  // the living world: a phyllotaxis field, slowly winding, hue drifting the palette
+  function drawWorld(cx, cy, zoom){
+    var N = 620, base = Math.min(W,Hh);
+    var spread = base * 0.052 * zoom;
+    var wind = S.t * 0.05;                       // the whole field turns slowly
+    var breathe = 1 + 0.05*Math.sin(S.t*0.4);
+    for (var i=0;i<N;i++){
+      var a = i*GOLD + wind;
+      var rr = Math.sqrt(i) * spread * breathe;
+      var x = cx + Math.cos(a)*rr, y = cy + Math.sin(a)*rr;
+      if (x<-40||x>W+40||y<-40||y>Hh+40) continue;
+      var hue = HUES[(i + ((S.t*0.15)|0)) % HUES.length];
+      var tw = 0.5 + 0.5*Math.sin(S.t*0.9 + i*0.5);   // gentle twinkle
+      var dotR = (1.1 + 2.6*(i/N)) * zoom;
+      X.beginPath(); X.arc(x,y,dotR,0,7);
+      X.fillStyle = hue; X.globalAlpha = (0.12 + 0.5*tw) * Math.min(1, 1.4 - i/N);
+      X.fill();
+    }
+    X.globalAlpha = 1;
+  }
+
+  function draw(dt){
+    S.t += dt;
+
+    // ground vignette
+    var g = X.createRadialGradient(W/2, Hh*0.44, 0, W/2, Hh*0.44, Math.max(W,Hh)*0.75);
+    g.addColorStop(0, C.bg0); g.addColorStop(1, C.bg1);
+    X.fillStyle=g; X.fillRect(0,0,W,Hh);
+
+    var uiAlpha = 1;
+
+    // ── the BOOM: START ignites a reaction-diffusion that floods the screen ──
+    if (S.phase==="entering"){
+      S.enterT += dt;
+      var worldFade = Math.max(0, 1 - S.enterT*1.2);
+      X.save(); X.globalAlpha = worldFade; drawWorld(W/2, Hh*0.44, 1); X.restore();
+      RD.step(8);                         // churn hard — the chain reaction
+      RD.draw(1);
+
+      // when it has flooded the frame (or as a time backstop) → white flash → break
+      var flooded = RD.cover > 0.55 || S.enterT > 2.6;
+      if (flooded){
+        S.flashT = (S.flashT||0) + dt;
+        var fp = Math.min(1, S.flashT/0.5);
+        X.fillStyle = "#ffffff"; X.globalAlpha = fp*fp; X.fillRect(0,0,W,Hh); X.globalAlpha=1;
+        if (S.flashT > 0.55){ S.phase="maze"; MAZE.gen(); }
+      }
+      requestFrame(); return;
+    }
+
+    // ── the MAZE (and its solved rest): walked over the frozen reaction texture ──
+    if (S.phase==="maze" || S.phase==="solved"){
+      RD.draw(0.20);                      // the texture the maze is carved from, held faint
+      MAZE.update(dt); MAZE.draw();
+      if (S.phase==="maze"){
+        text("find the way through", W/2, Hh*0.09, 16, C.dim, 600, "center", 0.7);
+      } else {
+        S.solveT = (S.solveT||0) + dt;
+        text("the way opens", W/2, Hh*0.09, 20, C.gold, 700, "center", Math.min(1,S.solveT*2));
+        // the orb holds still for a few seconds, then one arm of the nucleus wakes
+        if (S.solveT > 2.6){ S.phase="nucleus"; NUC.init(MAZE.goalCorner); FLOW.init(); LIGHTS.begin(); }
+      }
+      requestFrame(); return;
+    }
+
+    // ── the NUCLEUS: flow field + roving attractor, one arm breathing ──
+    if (S.phase==="nucleus"){
+      RD.draw(0.06);                      // the reaction, now just a faint ground
+      FLOW.step(dt); FLOW.drawField();    // the drift flow, beneath the beams
+      NUC.draw(dt);                       // the connected beams + pulsating core within it
+      FLOW.drawAttractor();               // the attractor lancing in, on top
+      // the room breathes with the core — same pulse the screen shows
+      LIGHTS.breathe(0.5 + 0.5*Math.sin(NUC.t*Math.PI*2*0.33), dt);
+      text("the field drifts — one arm breathes", W/2, Hh*0.09, 16, DRIFT.magenta, 700, "center", 0.8);
+      text("press B to return", W/2, Hh*0.09+28, 13, C.dim, 600, "center", 0.5);
+      requestFrame(); return;
+    }
+
+    // title state: the calm living world behind the menu
+    drawWorld(W/2, Hh*0.44, 1);
+
+    // ── title + menu (fade out during the dive) ──
+    X.save(); X.globalAlpha = uiAlpha;
+
+    text("DEEP · HOUSE · SHOWCASE", W/2, Hh*0.20, 13, C.violet, 700, "center", 0.85*uiAlpha);
+
+    // title with a soft gold glow
+    var titleY = Hh*0.30, ts = Math.max(38, Math.min(96, W*0.11));
+    X.save(); X.shadowColor = "rgba(242,201,76,.35)"; X.shadowBlur = 40;
+    X.letterSpacing = "0.10em";
+    text("DEEP HOUSE", W/2, titleY, ts, C.gold, 800);
+    X.restore();
+
+    // a drifting feeling-word (crossfade every ~3.2s) — carried, never about anyone
+    if (S.t - S.feelAt > 3.2){ S.feel = (S.feel+1)%FEELINGS.length; S.feelAt = S.t; }
+    var fp = Math.min(1, (S.t - S.feelAt)/0.8);
+    text(FEELINGS[S.feel], W/2, titleY+ts*0.62, Math.max(15,W*0.02), C.teal, 500, "center", (0.3+0.5*fp)*uiAlpha);
+
+    // menu
+    var my = Hh*0.60, gap = 58;
+    MENU.forEach(function(m,i){
+      var sel = i===S.cur;
+      var pulse = sel ? (0.7 + 0.3*Math.sin(S.t*3)) : 1;
+      var col = sel ? C.gold : C.dim;
+      if (sel) text("▶", W/2 - (m.label.length*0.5* (Math.max(20,W*0.028)) ) - 26, my+i*gap, Math.max(20,W*0.026), C.gold, 800, "center", pulse*uiAlpha);
+      text(m.label, W/2, my+i*gap, Math.max(22,W*0.030), col, sel?800:600, "center", (sel?pulse:0.7)*uiAlpha);
+    });
+
+    // press-start blink hint under the menu
+    var blink = 0.4 + 0.6*Math.abs(Math.sin(S.t*1.6));
+    text("press  A  to enter", W/2, Hh*0.60 + MENU.length*gap + 26, 15, C.ink, 600, "center", blink*uiAlpha*0.8);
+
+    X.restore();
+    requestFrame();
+  }
+
+  var last = performance.now();
+  var raf = 0;
+  function loop(t){ var dt = Math.min(0.05,(t-last)/1000); last=t; draw(dt); }
+  function requestFrame(){ raf = requestAnimationFrame(loop); }
+  requestFrame();
+})();
+</script>
+</body>
+</html>

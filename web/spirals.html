@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deep House — Spirals</title>
+<style>
+  :root { color-scheme: dark; --bg:#04050a; --ink:#c8d2eb; --dim:#6a7290; --gold:#f2c94c; --line:#171a2b; --acc:#b8a9e0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 "Cascadia Code", ui-monospace, Consolas, monospace;
+    -webkit-text-size-adjust: 100%; max-width: 100%; overflow-x: hidden; }
+  header { padding: 14px 16px 6px; }
+  h1 { margin: 0; font-size: 17px; font-weight: 600; color: var(--acc); }
+  .sub { color: var(--dim); font-size: 12px; margin: 2px 0 0; }
+  .bar { position: sticky; top: 0; z-index: 5; background: rgba(4,5,10,.92);
+    backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
+    display: flex; gap: 14px 18px; align-items: center; flex-wrap: wrap; padding: 10px 16px; }
+  .grp { display: flex; gap: 8px; align-items: center; }
+  .grp > span { color: var(--dim); font-size: 12px; }
+  button, select { background: #0c1020; color: var(--ink); border: 1px solid #222a44;
+    border-radius: 8px; padding: 8px 12px; font: inherit; min-height: 40px; cursor: pointer; }
+  button.on { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+  input[type=range] { width: 150px; height: 40px; }
+  label.chk { display: flex; gap: 6px; align-items: center; color: var(--dim); }
+  #sigval { color: var(--gold); min-width: 34px; display: inline-block; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px; padding: 12px 12px 40px; }
+  .tile { position: relative; background: #04050a; border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden; }
+  .tile canvas { display: block; width: 100%; aspect-ratio: 1 / 1; }
+  .cap { padding: 6px 8px; color: var(--gold); font-size: 12px; border-top: 1px solid var(--line);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { position: absolute; top: 6px; right: 6px; background: rgba(242,201,76,.16);
+    color: var(--gold); border: 1px solid var(--gold); border-radius: 999px;
+    font-size: 10px; padding: 1px 7px; letter-spacing: .04em; }
+  .foot { color: var(--dim); font-size: 11px; padding: 0 16px 30px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Deep House — Spirals</h1>
+  <p class="sub">every exhibit runs one contract: turbulent at chaos, resolving to symmetry as σ rises. Drag σ, or let it breathe.</p>
+</header>
+<div class="bar">
+  <div class="grp"><span>show</span>
+    <button id="vNew" class="on">New 18</button>
+    <button id="vAll">All</button>
+  </div>
+  <div class="grp"><span>σ</span>
+    <input id="sigma" type="range" min="0" max="1" step="0.01" value="0.82">
+    <span id="sigval">0.82</span>
+    <label class="chk"><input id="auto" type="checkbox" checked> breathe</label>
+  </div>
+  <div class="grp"><span>colour</span><select id="pal"></select></div>
+</div>
+<div id="grid"></div>
+<p class="foot" id="count"></p>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SYM = window.SYM, PALETTES = window.PALETTES;
+  var TITLES = SYM.EXHIBIT_TITLES;
+  var NEW_COUNT = 18, NEW_FROM = Math.max(0, TITLES.length - NEW_COUNT);
+  function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+
+  // palettes: the atlas as hex arrays, with a punchy fallback
+  var PAL_LIST = [];
+  try {
+    if (PALETTES && PALETTES.all) PALETTES.all().forEach(function (s) {
+      if (s && s.colors && s.colors.length >= 2) PAL_LIST.push({ name: s.id || "scheme", cols: s.colors.slice(0, 5) });
+    });
+  } catch (e) {}
+  if (!PAL_LIST.length) PAL_LIST = [{ name: "Deep House", cols: ["C77DBB", "5B6CE8", "4A8B8C", "F2C94C", "8E7CC3"] }];
+
+  var grid = document.getElementById("grid"), tiles = [];
+  var sigmaEl = document.getElementById("sigma"), sigval = document.getElementById("sigval");
+  var autoEl = document.getElementById("auto"), palEl = document.getElementById("pal");
+  var vNew = document.getElementById("vNew"), vAll = document.getElementById("vAll"), countEl = document.getElementById("count");
+  var DPR = Math.min(2, window.devicePixelRatio || 1);
+  var showAll = false;
+
+  PAL_LIST.forEach(function (p, i) { var o = document.createElement("option"); o.value = i; o.textContent = p.name; palEl.appendChild(o); });
+  function palette() { return PAL_LIST[palEl.value | 0].cols; }
+
+  // Only animate tiles that are actually on screen (phone battery + heat).
+  var io = ("IntersectionObserver" in window) ? new IntersectionObserver(function (ents) {
+    ents.forEach(function (e) { var t = e.target._tile; if (t) t.vis = e.isIntersecting; });
+  }, { rootMargin: "120px" }) : null;
+
+  function build() {
+    tiles.forEach(function (t) { if (io) io.unobserve(t.wrap); });
+    grid.innerHTML = ""; tiles = [];
+    TITLES.forEach(function (title, i) {
+      var isNew = i >= NEW_FROM;
+      if (!showAll && !isNew) return;
+      var wrap = document.createElement("div"); wrap.className = "tile";
+      var cv = document.createElement("canvas");
+      var cap = document.createElement("div"); cap.className = "cap"; cap.textContent = title;
+      wrap.appendChild(cv);
+      if (isNew) { var b = document.createElement("div"); b.className = "badge"; b.textContent = "new"; wrap.appendChild(b); }
+      wrap.appendChild(cap); grid.appendChild(wrap);
+      var t = { wrap: wrap, cv: cv, ctx: cv.getContext("2d"), ex: SYM.makeExhibit(title), i: i, sigma: +sigmaEl.value, vis: true };
+      wrap._tile = t; tiles.push(t);
+      if (io) io.observe(wrap);
+    });
+    countEl.textContent = tiles.length + " exhibits" + (showAll ? " · full catalog" : " · newest additions") + " · catalog " + TITLES.length + " total";
+  }
+
+  function size(t) {
+    var w = Math.max(2, (t.cv.clientWidth * DPR) | 0), h = Math.max(2, (t.cv.clientHeight * DPR) | 0);
+    if (t.cv.width !== w || t.cv.height !== h) { t.cv.width = w; t.cv.height = h; }
+  }
+
+  var last = 0;
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+    var pal = palette(), manual = +sigmaEl.value, auto = autoEl.checked;
+    for (var k = 0; k < tiles.length; k++) {
+      var t = tiles[k]; if (!t.vis) continue;
+      size(t);
+      // auto: each tile breathes on its own slow phase so the grid shimmers; manual: all share the slider.
+      var target = auto ? 0.5 - 0.5 * Math.cos(now / 1000 * (0.10 + ((t.i * 37) % 20) / 20 * 0.22) + (t.i * 1.7)) : manual;
+      t.sigma += (target - t.sigma) * Math.min(1, dt * 3.2);
+      var sg = clamp(t.sigma, 0, 1);
+      t.ex.update(dt, sg * 2 - 1); t.ex.q = sg;
+      t.ex.draw(t.ctx, t.cv.width, t.cv.height, dt, { alpha: 0.9, fade: 0.2, color: SYM.orderColor(sg, pal), tint: null });
+    }
+    requestAnimationFrame(loop);
+  }
+
+  sigmaEl.addEventListener("input", function () { sigval.textContent = (+sigmaEl.value).toFixed(2); if (autoEl.checked) autoEl.checked = false; });
+  autoEl.addEventListener("change", function () {});
+  palEl.addEventListener("change", function () {});
+  vNew.addEventListener("click", function () { showAll = false; vNew.classList.add("on"); vAll.classList.remove("on"); build(); });
+  vAll.addEventListener("click", function () { showAll = true; vAll.classList.add("on"); vNew.classList.remove("on"); build(); });
+
+  build();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

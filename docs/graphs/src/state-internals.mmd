@@ -1,0 +1,37 @@
+%% DEEP HOUSE — HOUSE organism internals (the State Bible engines inside house.js)
+flowchart TB
+    subgraph HOUSE["HOUSE — one organism (~26 vars)"]
+        Vars["state vars<br/>trust · mask · overload · fatigue<br/>warmth · curiosity · regulation · attention …"]
+
+        Physics["Emotional Physics<br/>per-var inertia · decay · threshold · feedback<br/>stress rises fast/falls slow · trust collapses fast<br/>thresholds leak into neighbours"]
+
+        Pulse["House Pulse<br/>heartbeat tick driving decay + recentre"]
+
+        Endocrine["Endocrine Light model + Mask Layer<br/>whole-house mood → glow"]
+
+        Memory["House Memory<br/>localStorage persistence"]
+
+        Observation["Player Observation<br/>tracks what the guest does"]
+
+        HueEngine["Hue Engine (HOUSE.hue)<br/>attention accumulator + decay<br/>per-run warmer/colder field<br/>reality-slip / poke outcomes"]
+    end
+
+    Push["push() — pressure in (delta then recentre)"]
+    PulseEvent["pulseEvent() — a real jolt (decay, not snap-back)"]
+    Get["get() / sample() — reads out"]
+
+    Push --> Vars
+    PulseEvent --> Vars
+    Vars --> Physics
+    Physics --> Pulse
+    Pulse --> Vars
+    Vars --> Endocrine
+    Vars --> Memory
+    Observation --> Vars
+    Vars --> HueEngine
+    HueEngine --> Vars
+    Vars --> Get
+    Endocrine --> Get
+
+    classDef engine fill:#238636,stroke:#0f4c1f,color:#fff
+    class Physics,Pulse,Endocrine,Memory,HueEngine engine

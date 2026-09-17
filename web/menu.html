@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deep House — Menu</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #04050a; overflow: hidden; }
+  /* one canvas; the 4-button remote (or keyboard) drives it, same as the arcade. */
+  #stage { display: block; width: 100vw; height: 100dvh; background: #04050a; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<!-- reused engine (unchanged): palettes + the exhibit atlas + the spiral view -->
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script src="game-spiral.js"></script>
+<!-- the registry (for display names) + the games that register into it. The manifest emits
+     one <script> per listed id — do NOT hand-add game tags here, and do not defer this tag.
+     Hand-keeping this list is how the menu came to load 5 of 15 games while looking fine. -->
+<script src="games/registry.js"></script>
+<script src="games/manifest.js"></script>
+<!-- the solved-store, the rooms (data), then the shell that reads them -->
+<script src="menu-progress.js"></script>
+<script src="menu-data.js"></script>
+<script src="menu.js"></script>
+</body>
+</html>

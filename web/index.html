@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deep House — all rooms</title>
+  <style>
+    :root { color-scheme: dark; --ink: #f3f0e8; --muted: #b9b3c7; --panel: rgba(18,15,31,.82); --line: rgba(197,174,255,.22); --violet: #bda7ff; --gold: #f2c94c; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: radial-gradient(circle at 15% 0%, rgba(94,62,164,.42), transparent 36rem), radial-gradient(circle at 90% 20%, rgba(0,174,180,.18), transparent 32rem), #090711; font: 17px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 64px 0 80px; }
+    h1 { margin: 0; font-size: clamp(2.6rem, 9vw, 6rem); line-height: .95; letter-spacing: -.055em; }
+    .lede { max-width: 720px; margin: 24px 0 16px; font-size: 1.15rem; color: var(--muted); }
+    .notice { max-width: 760px; padding: 14px 18px; border-left: 3px solid var(--gold); background: rgba(242,201,76,.08); }
+    h2 { margin: 56px 0 18px; font-size: 1.45rem; color: var(--gold); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    a, .disabled { display: block; min-height: 100%; padding: 19px; color: inherit; text-decoration: none; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+    a:hover, a:focus-visible { transform: translateY(-2px); border-color: var(--violet); background: rgba(37,29,62,.94); outline: none; }
+    .disabled { position: relative; opacity: .42; cursor: not-allowed; border-style: dashed; filter: grayscale(.7); }
+    .disabled::after { content: "Not in public version"; display: block; width: fit-content; margin-top: 13px; padding: 3px 7px; border: 1px solid currentColor; border-radius: 999px; color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .connect { max-width: 850px; margin-top: 34px; padding: 22px 24px; border: 1px solid var(--line); border-radius: 14px; background: rgba(18,15,31,.68); }
+    .connect h2 { margin: 0 0 12px; }
+    .connect ol { margin-bottom: 0; }
+    code { padding: .12em .35em; border-radius: .3em; background: rgba(255,255,255,.08); }
+    strong { display: block; margin-bottom: 5px; font-size: 1.08rem; color: var(--violet); }
+    span { color: var(--muted); }
+    footer { margin-top: 58px; color: var(--muted); }
+    footer a { display: inline; padding: 0; border: 0; background: none; color: var(--violet); }
+    footer a:hover { transform: none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Deep House</h1>
+  <p class="lede">An interactive collection of living light, generative drawings, small games, and visual experiments. Pick any door below; the main piece is first.</p>
+  <p class="notice"><strong>Before you begin</strong>Some pages flash, pulse, or move quickly. If that is uncomfortable, close the page or use your browser's Back button. Smart lights are optional; every screen still works without them.</p>
+
+  <section class="connect">
+    <h2>One computer first; phone or second screen later</h2>
+    <p>The main experience runs in the browser on the computer that started Deep House. A phone, tablet, television, or second computer is optional: it can control or watch alongside the main screen.</p>
+    <p>To join from a phone, both devices must use the same Wi-Fi and you need the computer's IP address:</p>
+    <ol>
+      <li>On Windows, open <strong>Command Prompt</strong>.</li>
+      <li>Type <code>ipconfig</code> and press Enter.</li>
+      <li>Find <strong>IPv4 Address</strong>. It looks like <code>192.168.1.23</code>.</li>
+      <li>On the computer, open <code>http://YOUR-IP:8800/qr/</code>, replacing <code>YOUR-IP</code> with that number.</li>
+      <li>Use the QR launcher's simple browser steps to show one QR code. Scan it with the phone's Camera app.</li>
+    </ol>
+    <p><a href="qr/"><strong>Open the QR launcher</strong><span>It is the easiest doorway for a second device.</span></a></p>
+  </section>
+
+  <h2>Start here</h2>
+  <div class="grid">
+    <a href="help.html"><strong>Help and controls</strong><span>Simple start, stop, keyboard, full-screen, and second-display instructions. Open this whenever you are unsure what to do.</span></a>
+    <a href="house.html"><strong>The House</strong><span>The central slow-moving constellation. Walk between stars, name feelings, and change a shared visual organism; it was made to turn an inner map into light and motion.</span></a>
+    <a href="party.html"><strong>Party</strong><span>A full-screen generative show that blends mathematical organisms. It was made for projection, music, and live steering during a party.</span></a>
+    <a href="organisms.html"><strong>Organisms</strong><span>A gallery of evolving procedural creatures. It was made to explore which mathematical forms feel most alive on a large screen.</span></a>
+    <a href="games.html"><strong>The Arcade</strong><span>A doorway to quick group games. It was made so phones, buttons, and a roomful of people can influence the installation together.</span></a>
+  </div>
+
+  <h2>Experiences and controls</h2>
+  <div class="grid">
+    <div class="disabled" data-page="play.html" aria-disabled="true"><strong>Play</strong><span>A simple phone-friendly controller for the shared installation. It was made to let guests join without learning technical controls.</span></div>
+    <div class="disabled" data-page="game.html" aria-disabled="true"><strong>Part Game</strong><span>The focused view for whichever party game is active. It was made to give one shared challenge the whole screen.</span></div>
+    <div class="disabled" data-page="room.html" aria-disabled="true"><strong>Party Room</strong><span>A room-facing game display with shared state. It was made for a projector or television that everyone can see.</span></div>
+    <a href="menu.html"><strong>Menu</strong><span>A compact navigation screen for choosing modes. It was made to move through the house with only a few buttons.</span></a>
+    <a href="quiz.html"><strong>Attune</strong><span>A visual preference quiz that tunes the system. It was made to learn what kinds of colour and motion feel right to the visitor.</span></a>
+    <a href="synth.html"><strong>The Synth</strong><span>A hands-on control surface for shaping the visuals. It was made to treat the installation like an instrument instead of a video.</span></a>
+    <a href="title.html"><strong>Title Screen</strong><span>A cinematic Deep House introduction. It was made to open the installation with atmosphere before anyone touches it.</span></a>
+    <a href="display.html"><strong>Second Display</strong><span>A passive companion view that follows The House. It was made for a television or projector while another screen handles the controls.</span></a>
+    <a href="dashboard.html"><strong>Party Dashboard</strong><span>The operator's live status and steering panel. It was made to keep a performance understandable while several screens are running.</span></a>
+    <a href="the-basement.html"><strong>The Basement</strong><span>A compact operator console for changing weather, deck, and energy. It was made for quiet control from a phone.</span></a>
+    <div class="disabled" data-page="lights.html" aria-disabled="true"><strong>Light Setup</strong><span>A visual tool for checking and arranging optional Hue lights. It was made to connect screen colour to the physical room.</span></div>
+    <a href="qr/"><strong>QR Launcher</strong><span>A second-device doorway with simple QR instructions. It was made so a phone can join without typing every page address.</span></a>
+  </div>
+
+  <h2>Studios and experiments</h2>
+  <div class="grid">
+    <a href="blend-lab.html"><strong>Blend Lab</strong><span>A workshop for mixing visual layers. It was made to compare combinations before putting them into the live show.</span></a>
+    <div class="disabled" data-page="colorfield.html" aria-disabled="true"><strong>Colour Field</strong><span>A flowing field of colour and texture. It was made to see how a screen can feel like light rather than an interface.</span></div>
+    <div class="disabled" data-page="crowd-lab.html" aria-disabled="true"><strong>Crowd Lab</strong><span>A simulator for many visitors acting at once. It was made to test collective motion before inviting a real crowd.</span></div>
+    <a href="experiments.html"><strong>Experiments</strong><span>A shelf of early generative sketches. It was made to keep unusual visual ideas playable instead of leaving them as notes.</span></a>
+    <a href="helix-lab.html"><strong>Helix Motion Lab</strong><span>A moving double-helix study. It was made to tune the rhythm and depth of twisting strands.</span></a>
+    <a href="helix-lab2.html"><strong>Helix Reconstruction Lab</strong><span>A second helix study that rebuilds the form from parts. It was made to understand which cues make a helix readable.</span></a>
+    <a href="helix-lab3.html"><strong>Helix Deconstruction Grid</strong><span>A grid of helix variations shown side by side. It was made for fast visual comparison.</span></a>
+    <a href="helix-tuner.html"><strong>Helix Tuner</strong><span>A control panel for changing helix parameters live. It was made to find good shapes by eye.</span></a>
+    <a href="mash.html"><strong>Spiral Mash</strong><span>Several spiral systems colliding in one canvas. It was made to discover surprising combinations.</span></a>
+    <a href="spirals.html"><strong>Spirals</strong><span>A gallery of mathematical spiral drawings. It was made to explore how simple equations become hypnotic movement.</span></a>
+    <a href="wiring-lab.html"><strong>Wiring Network</strong><span>A living network of signals and connections. It was made to turn the installation's hidden communication into something visible.</span></a>
+  </div>
+
+  <footer>Need help? Open the <a href="help.html">plain-English guide</a>, or return here at <code>http://127.0.0.1:8800/</code>.</footer>
+</main>
+</body>
+</html>

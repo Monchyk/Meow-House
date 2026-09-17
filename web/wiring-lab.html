@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deep House — The Wiring Network</title>
+<style>
+  :root { color-scheme: dark; --bg:#04050a; --panel:#080a14; --ink:#c8d2eb; --dim:#6a7290;
+    --gold:#f2c94c; --line:#171a2b; --acc:#b8a9e0; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:13px/1.45 "Cascadia Code", ui-monospace, Consolas, monospace;
+    -webkit-text-size-adjust:100%; overflow:hidden; }
+  #app { display:grid; height:100dvh; grid-template-columns: 1fr 300px; }
+  #stage { display:block; width:100%; height:100%; background:#04050a; touch-action:none; }
+  #panel { background:var(--panel); border-left:1px solid var(--line); padding:14px 14px 20px;
+    overflow-y:auto; display:flex; flex-direction:column; gap:16px; }
+  h1 { margin:0; font-size:15px; font-weight:600; color:var(--acc); letter-spacing:.02em; }
+  .sub { margin:2px 0 0; color:var(--dim); font-size:11px; }
+  .sec { display:flex; flex-direction:column; gap:8px; }
+  .lbl { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; max-width:100%; }
+  input, button { background:#0c1020; color:var(--ink); border:1px solid #222a44;
+    border-radius:8px; padding:8px 10px; font:inherit; min-height:38px; }
+  button { cursor:pointer; flex:1 1 0; }
+  button:hover { border-color:#3a466e; }
+  input[type=number] { width:96px; }
+  input[type=range] { width:100%; height:34px; accent-color:var(--gold); padding:0; border:none; }
+  table { width:100%; border-collapse:collapse; font-size:11px; }
+  td { padding:3px 0; color:var(--dim); }
+  td.v { text-align:right; color:var(--gold); font-variant-numeric:tabular-nums; }
+  #phase { font-size:20px; color:var(--acc); letter-spacing:.06em; }
+  #bar { height:6px; background:#0c1020; border-radius:4px; overflow:hidden; }
+  #barf { height:100%; width:0%; background:var(--gold); transition:width .2s linear; }
+  .foot { color:var(--dim); font-size:10px; line-height:1.5; }
+  .sw { display:block; height:26px; width:44px; border-radius:6px; border:1px solid #222a44; }
+  @media (max-width: 720px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; }
+    #panel { border-left:none; border-top:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="stage"></canvas>
+  <aside id="panel">
+    <div class="sec">
+      <h1>The Wiring Network</h1>
+      <p class="sub">Cells throw out probes, touch, lock, and thicken. Watch for the moment the islands stop being islands.</p>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">the room right now</div>
+      <div id="phase">searching</div>
+      <div id="bar"><div id="barf"></div></div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">colour</div>
+      <div class="row" style="gap:6px">
+        <span class="sw" id="sw-calm" title="the cell that has kept its own colour"></span>
+        <span class="sw" id="sw-now" style="flex:1 1 auto" title="the field's average"></span>
+        <span class="sw" id="sw-seam" title="the cell most mixed by its neighbours"></span>
+      </div>
+      <table>
+        <tr><td>field spans</td><td class="v" id="s-spread">0°</td></tr>
+        <tr><td>average shift</td><td class="v" id="s-drift">0°</td></tr>
+        <tr><td>most mixed</td><td class="v" id="s-dmax">0°</td></tr>
+        <tr><td>least mixed</td><td class="v" id="s-dmin">0°</td></tr>
+      </table>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">measured</div>
+      <table>
+        <tr><td>time</td><td class="v" id="s-t">0.0 s</td></tr>
+        <tr><td>cells</td><td class="v" id="s-n">0</td></tr>
+        <tr><td>reaching probes</td><td class="v" id="s-tips">0</td></tr>
+        <tr><td>locked filaments</td><td class="v" id="s-e">0</td></tr>
+        <tr><td>islands</td><td class="v" id="s-c">0</td></tr>
+        <tr><td>largest / all</td><td class="v" id="s-g">0%</td></tr>
+        <tr><td>retracted</td><td class="v" id="s-p">0</td></tr>
+      </table>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">seed</div>
+      <div class="row">
+        <input type="number" id="seed" value="1234" step="1">
+        <button id="again">restart</button>
+      </div>
+      <div class="row">
+        <button id="pause">pause</button>
+        <button id="skip">skip 10s</button>
+      </div>
+      <div class="lbl">tempo <span id="tempoV" style="color:var(--gold)">1.0×</span></div>
+      <input type="range" id="tempo" min="0.25" max="4" step="0.25" value="1">
+    </div>
+
+    <p class="foot">Same seed, same run — placement, branching and wander are all seeded, and the
+      wander is a noise field indexed by (cell, time), so it replays frame for frame.
+      Every cell spawns its own hue and <b>keeps it</b>. Colour does not fuse — it bleeds
+      one hop at a time along the filaments, hardest where two differently-coloured
+      regions meet and fainter with every hop away from that seam, while each cell pulls
+      elastically back toward the hue it was born with. Mixing is asymmetric, allele-style:
+      a dominant hue moves its neighbours more than they move it. So the lattice settles
+      into a <b>gradient</b>, not one colour — cells at a junction go most of the way to
+      their neighbour, the far tips stay as they started. Chroma is never part of the mix
+      (a hue only becomes pixels at the most saturation sRGB holds), so nothing goes grey.
+      Migration speed and branch angles are sampled from
+      <b>research/organisms/cell-motion.json</b>, measured off the real culture footage by
+      tools/extract_cell_motion.py. Standalone sandbox: not wired into the party ambient.</p>
+  </aside>
+</div>
+
+<script src="viz/cell-motion.js"></script>
+<script src="viz/wiring.js"></script>
+<script>
+(function () {
+  "use strict";
+  var cv = document.getElementById("stage"), ctx = cv.getContext("2d");
+  // the party's warm-cool light scene, inlined: this page has no symmetry.js dependency
+  var PALETTE = ["101a33", "3c5aa6", "8e7cc3", "f2c94c", "ffe9b0"];
+  var org = null, paused = false, tempo = 1, last = 0, acc = 0;
+  var FIXED = 1 / 60;   // fixed simulation step: tempo scales how many we run, never the step
+                        // itself, so 0.25× is genuinely slower and 4× is genuinely faster.
+
+  // The two ends of the gradient: the cell still closest to the hue it was born with,
+  // and the one its neighbours have dragged furthest.
+  function extremes() {
+    var calm = 0, seam = 0, lo = 1e9, hi = -1;
+    for (var i = 0; i < org.nodes.length; i++) {
+      var d = org.driftOf(i);
+      if (d < lo) { lo = d; calm = i; }
+      if (d > hi) { hi = d; seam = i; }
+    }
+    return { calm: calm, seam: seam };
+  }
+  function css(c) { return "rgb(" + c.map(Math.round).join(",") + ")"; }
+  function degOf(rad) { return Math.round(rad * 180 / Math.PI) + "°"; }
+
+  function fit() {
+    var r = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(cv.clientWidth * r);
+    cv.height = Math.round(cv.clientHeight * r);
+  }
+  window.addEventListener("resize", fit);
+
+  function restart() {
+    var s = parseInt(document.getElementById("seed").value, 10);
+    org = window.WIRING.create(isFinite(s) ? s : 1234, window.CELL_MOTION);
+    last = 0;
+  }
+
+  // the arc, as feeling-words. No prose about anyone; the words name the room's state.
+  function phaseWord(s) {
+    if (s.edges === 0) return "searching";
+    if (s.giant < 0.5) return "reaching";
+    if (s.t - s.percolatedAt < 6) return "contact";
+    if (s.giant >= 0.5 && s.tips > 120) return "settling";
+    return "together";
+  }
+
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    if (!org) return;
+    var dt = last ? Math.min(0.05, (ts - last) / 1000) : 0;
+    last = ts;
+    if (!paused) {
+      acc += dt * tempo;
+      var guard = 0;
+      while (acc >= FIXED && guard++ < 12) { org.step(FIXED); acc -= FIXED; }
+    }
+
+    ctx.fillStyle = "rgba(4,5,10,0.34)";       // trails: the culture leaves a ghost
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    org.draw(ctx, cv.width, cv.height, PALETTE);
+
+    var s = org.stats();
+    document.getElementById("s-t").textContent = s.t.toFixed(1) + " s";
+    document.getElementById("s-n").textContent = s.nodes;
+    document.getElementById("s-tips").textContent = s.tips;
+    document.getElementById("s-e").textContent = s.edges;
+    document.getElementById("s-c").textContent = s.comps;
+    document.getElementById("s-g").textContent = Math.round(s.giant * 100) + "%";
+    document.getElementById("s-p").textContent = s.pruned;
+    // colour: the field's average, flanked by the cell that has held its own hue and
+    // the cell its neighbours have moved furthest. Those two swatches ARE the gradient.
+    var ends = extremes();
+    document.getElementById("sw-now").style.background = css(org.colorAt(s.hue));
+    document.getElementById("sw-calm").style.background = css(org.colorAt(org.hueOf(ends.calm)));
+    document.getElementById("sw-seam").style.background = css(org.colorAt(org.hueOf(ends.seam)));
+    document.getElementById("s-spread").textContent = degOf(s.hueSpread);
+    document.getElementById("s-drift").textContent = degOf(s.drift.mean);
+    document.getElementById("s-dmax").textContent = degOf(s.drift.max);
+    document.getElementById("s-dmin").textContent = degOf(s.drift.min);
+    document.getElementById("phase").textContent = phaseWord(s);
+    document.getElementById("barf").style.width = Math.round(s.giant * 100) + "%";
+  }
+
+  document.getElementById("again").addEventListener("click", restart);
+  document.getElementById("pause").addEventListener("click", function () {
+    paused = !paused; this.textContent = paused ? "resume" : "pause";
+  });
+  document.getElementById("skip").addEventListener("click", function () {
+    if (org) for (var i = 0; i < 300; i++) org.step(1 / 30);
+  });
+  document.getElementById("tempo").addEventListener("input", function () {
+    tempo = parseFloat(this.value);
+    document.getElementById("tempoV").textContent = tempo.toFixed(2) + "×";
+  });
+
+  fit(); restart(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

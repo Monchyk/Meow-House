@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEEP HOUSE</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-room="boot">
+  <canvas id="ambient"></canvas>
+  <canvas id="viz"></canvas>
+
+  <div id="ui">
+    <header>
+      <div id="room-title"></div>
+      <div id="status">
+        <span id="lights-dot" class="dot"></span>
+        <span id="lights-label">lights</span>
+      </div>
+    </header>
+
+    <main id="stage"></main>
+
+    <footer>
+      <div id="guide"></div>
+      <div id="hints"></div>
+    </footer>
+  </div>
+
+  <script src="house.js"></script>
+  <script src="data.js"></script>
+  <script src="guide.js"></script>
+  <script src="hue.js"></script>
+  <script src="viz/field.js"></script>
+  <script src="viz/decks.js"></script>
+  <script src="viz/symmetry.js"></script>
+  <!-- the field: the constellation IS the map (see web/field/) -->
+  <script src="field/config.js"></script>
+  <script src="field/graph.js"></script>
+  <script src="field/layout.js"></script>
+  <script src="field/progress.js"></script>
+  <script src="field/phases.js"></script>
+  <script src="field/agency.js"></script>
+  <script src="field/moments.js"></script>
+  <script src="field/beds.js"></script>
+  <script src="field/develop.js"></script>
+  <script src="field/cases.js"></script>
+  <script src="field/nav.js"></script>
+  <script src="field/render.js"></script>
+  <script src="field/field-room.js"></script>
+  <script src="brain.js"></script>
+</body>
+</html>

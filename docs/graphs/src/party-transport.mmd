@@ -1,0 +1,11 @@
+flowchart LR
+    D[Dashboard<br/>thin client] -->|POST command<br/>/party/pub| R[serve.py :8800<br/>stateless fan-out relay]
+    R -->|SSE /party/sub| B[Beamer party.html<br/>authoritative PARTY engine]
+    B -->|apply command| S[(Live state<br/>in browser memory)]
+    S --> V[Canvas projection]
+    B -->|POST state snapshot<br/>/party/pub| R
+    R -->|SSE /party/sub| D
+    D -.->|hello after connect| R
+    R -.->|hello| B
+    B -.->|fresh snapshot| R
+

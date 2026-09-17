@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep House — Party Room</title>
+<style>
+  :root{
+    color-scheme: dark;
+    --bg:#04050b; --panel:#0b1020; --line:rgba(150,170,220,0.20);
+    --ink:#e7edfb; --dim:#94a0c2; --gold:#f2c94c; --teal:#35d0c0; --violet:#8a6cff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:16px/1.4 'Segoe UI',system-ui,sans-serif;overflow:hidden}
+  #stage{position:fixed;inset:0;width:100%;height:100%;display:block}
+  #stage.hidden,#lobby.hidden{display:none}
+
+  /* ── lobby ── */
+  #lobby{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:26px;padding:40px;text-align:center}
+  .brand{letter-spacing:.32em;color:var(--violet);font-weight:700;font-size:15px}
+  .codebox{margin-top:6px}
+  .codebox .lead{color:var(--dim);font-size:16px;margin-bottom:8px}
+  #code{font-size:clamp(64px,14vw,150px);font-weight:800;letter-spacing:.14em;
+    color:var(--gold);text-shadow:0 0 40px rgba(242,201,76,.25);line-height:1}
+  #join-url{color:var(--teal);font-size:clamp(15px,2.4vw,22px);margin-top:10px;font-weight:600}
+  .players{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:900px;min-height:44px}
+  .pchip{display:flex;align-items:center;gap:8px;padding:8px 14px;border:2px solid var(--line);
+    border-radius:999px;background:rgba(255,255,255,.03);animation:pop .3s ease}
+  .pchip .pe{font-size:22px}.pchip .pn{font-weight:700;font-size:15px}
+  @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  .waiting{color:var(--dim);font-size:15px}
+  #picker{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:1000px;margin-top:6px}
+  .gcard{position:relative;width:280px;min-height:150px;padding:20px;text-align:left;cursor:pointer;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;color:var(--ink);
+    display:flex;flex-direction:column;gap:8px;transition:.15s}
+  .gcard:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .gcard .gk{position:absolute;top:14px;right:16px;color:var(--dim);font-size:14px;
+    border:1px solid var(--line);border-radius:6px;padding:1px 8px}
+  .gcard .gt{font-size:22px;font-weight:800;color:var(--gold)}
+  .gcard .gb{color:var(--dim);font-size:14px;line-height:1.5}
+  .hint{color:var(--dim);font-size:13px}
+  .hint b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div id="lobby">
+    <div class="brand">DEEP&nbsp;HOUSE&nbsp;·&nbsp;PARTY&nbsp;ROOM</div>
+    <div class="codebox">
+      <div class="lead">on your phone, open</div>
+      <div id="join-url">…/play.html</div>
+      <div class="lead" style="margin-top:14px">room code</div>
+      <div id="code">— — — —</div>
+    </div>
+    <div class="players" id="players"></div>
+    <div class="waiting"><span id="pcount">0</span> in the room — pick a game to start (click, or press 1–3)</div>
+    <div id="picker"></div>
+    <div class="hint">host keys: <b>1–3</b> start · <b>SPACE</b> advance / reveal · <b>ESC</b> back to lobby</div>
+  </div>
+  <canvas id="stage" class="hidden"></canvas>
+
+  <script src="roomgames/registry.js"></script>
+  <script src="roomhost.js"></script>
+  <script src="roomgames/guesspionage.js"></script>
+  <script src="roomgames/wavelength.js"></script>
+  <script src="roomgames/theminds.js"></script>
+  <script src="roomgames/fractaldive.js"></script>
+</body>
+</html>

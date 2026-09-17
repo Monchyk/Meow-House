@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant D as Dashboard
+    participant R as serve.py relay
+    participant B as Beamer master
+
+    D->>R: open SSE /party/sub
+    B->>R: open SSE /party/sub
+    D->>R: POST hello
+    R-->>B: hello
+    B->>R: POST authoritative snapshot
+    R-->>D: state snapshot
+
+    R-xD: relay restart / HTTP error
+    R-xB: relay restart / HTTP error
+    Note over D,B: each client closes EventSource and retries<br/>1s, 2s, 4s... capped at 10s
+    D->>R: reopen SSE + hello
+    B->>R: reopen SSE
+    B->>R: fresh snapshot
+    R-->>D: dashboard converges again

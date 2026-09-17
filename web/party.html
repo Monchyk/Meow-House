@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEEP HOUSE — party</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #04050a; overflow: hidden; }
+    #stage { display: block; width: 100vw; height: 100vh; }
+
+    /* Ephemeral cues only — mode words + unlock names. No prose (display firewall). */
+    #toasts {
+      position: fixed; left: 0; right: 0; bottom: 8vh;
+      display: flex; flex-direction: column-reverse; align-items: center; gap: 8px;
+      pointer-events: none; z-index: 10;
+    }
+    .toast {
+      font: 500 clamp(14px, 2.2vh, 20px) "Cascadia Code", Consolas, monospace;
+      letter-spacing: 0.06em; color: #dfe6f5;
+      background: rgba(10, 14, 26, 0.55); border: 1px solid rgba(150, 160, 200, 0.25);
+      padding: 6px 16px; border-radius: 999px;
+      opacity: 0; transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .toast.show { opacity: 0.92; transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <div id="toasts"></div>
+
+  <!-- order matters: palettes → party → hue → spiral → host loop -->
+  <script src="hue.js"></script>
+  <script src="palettes.js"></script>
+  <script src="party.js"></script>
+  <script src="viz/symmetry.js"></script>
+  <script src="viz/cell-motion.js"></script>
+  <script src="viz/wiring.js"></script>
+  <script src="viz/organisms.js"></script>
+  <script src="party-main.js"></script>
+  <script src="mic-sync.js"></script>
+</body>
+</html>

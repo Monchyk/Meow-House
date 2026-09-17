@@ -1,0 +1,197 @@
+{
+  "_readme": [
+    "THE PAIR TABLE — what taste.py asks, in order, and the exact state behind each side.",
+    "",
+    "Data, not code, and hardcoded rather than read from the presets, at K.'s call:",
+    "'I like to have a paper trail considering the llm usage here.' A preset can be",
+    "edited later and would silently rewrite what an old log entry meant; these numbers",
+    "cannot. A pair here plus a line in docs/TASTE-LOG.md reconstructs any answer,",
+    "months later, without running anything.",
+    "",
+    "Ranked by Fable (the VP): unblocks-the-most x cheap-to-ask x needs-real-lamps.",
+    "Items 1-5 are one sitting (~20-30 min). 6-8 are night two; the resume pointer is",
+    "what makes that split safe.",
+    "",
+    "kind: 'pair'     -> two sides, A vs B, the normal case.",
+    "kind: 'keepcut'  -> one thing at a time, keep or cut. Used where a pair would be",
+    "                    FALSE PRECISION: an A-vs-B tap between exhibit #14 and #22 says",
+    "                    nothing about a pool of 38. Fable's call, and it is right.",
+    "cost:            -> printed BEFORE the side plays. A B-side that costs 3-6x compute",
+    "                    gets rejected for lag, not for looks, unless the cost is named",
+    "                    first. That contamination is the failure mode this field exists",
+    "                    to prevent.",
+    "scope:           -> SCREEN or LAMPS or ROOM. Printed before anything moves, so the",
+    "                    right surface is being watched when it does."
+  ],
+
+  "baseline": {
+    "_why": [
+      "K.: 'you will be in complete control. so figure out a default value.'",
+      "So every session starts from ONE known state and every pair is a departure from",
+      "it, not from wherever last night's experiment left the room. Factory config,",
+      "attract mode off (the room must not wander mid-question), overlap off, zoom on",
+      "the pendulum, business pinned at 0.45 -- high enough that the pendulum swings and",
+      "the dive actually dives, low enough that it is not a carnival. Restored on exit."
+    ],
+    "config": {},
+    "business": 0.45,
+    "auto": false,
+    "overlapMode": 0,
+    "zoom": null,
+    "spiral": "Phyllotaxis",
+    "light": "Drift"
+  },
+
+  "pairs": [
+    {
+      "id": "dive-lens-vs-uniform",
+      "scope": "SCREEN",
+      "source": "PARTY-HANDOFF 8.0 Q1",
+      "question": "Which dive is right?",
+      "watch": "the middle of the frame as it pulls in and lets go",
+      "kind": "pair",
+      "unblocks": "whether the whole 21 zoom-lens rework stands as shipped, or gets revisited",
+      "sides": [
+        { "label": "A", "name": "lens (magnify the middle, frame edge stays put)",
+          "config": { "zoomMode": 0, "zoomMax": 3.2, "zoomFalloff": 2.2, "zoomRatio": 0.5 } },
+        { "label": "B", "name": "uniform (the whole frame scales -- the original)",
+          "config": { "zoomMode": 1, "zoomMax": 3.2, "zoomFalloff": 2.2, "zoomRatio": 0.5 } }
+      ]
+    },
+    {
+      "id": "palette-fade-mud",
+      "scope": "LAMPS",
+      "source": "PARTY-HANDOFF 8.0 Q6",
+      "question": "Does the colour change read as drift, or as mud?",
+      "watch": "the lamps as the scene changes -- the screen is not the question here",
+      "kind": "pair",
+      "note": "The C# layer's own colorDrift is pinned at 0.02 in party-main.js and is NOT what moves between these sides. Only the scene fade does. If it muds on BOTH sides, that is the two-motions bug and it needs the Hue repo, not this slider.",
+      "unblocks": "paletteFade default, and whether the two-colour-motions bug is real",
+      "sides": [
+        { "label": "A", "name": "8 s fade (current default)",
+          "config": { "paletteFade": 8 }, "then": "cycleLight" },
+        { "label": "B", "name": "20 s fade (slow enough to be unmistakably drift)",
+          "config": { "paletteFade": 20 }, "then": "cycleLight" }
+      ]
+    },
+    {
+      "id": "colour-spread-order",
+      "scope": "SCREEN",
+      "source": "STATE 2026-07-25 (changed today, unseen)",
+      "question": "How many colours should be left as it resolves?",
+      "watch": "the colours as the pattern settles into symmetry",
+      "kind": "pair",
+      "unblocks": "colorSpreadOrder default -- I changed this from 0.34 to 0.55 today on inference alone",
+      "sides": [
+        { "label": "A", "name": "rich (0.55 -- today's new default, several roles survive the resolve)",
+          "config": { "colorSpreadChaos": 1.0, "colorSpreadOrder": 0.55 } },
+        { "label": "B", "name": "converging (0.2 -- close to how it behaved before today)",
+          "config": { "colorSpreadChaos": 1.0, "colorSpreadOrder": 0.2 } }
+      ]
+    },
+    {
+      "id": "newton-soft",
+      "scope": "SCREEN",
+      "source": "PARTY-HANDOFF 8.0 Q2",
+      "question": "Newton is soft now, not sharp. Keep it, or is the haze worse than the blocks?",
+      "watch": "the three basins where they meet -- detail vs mush",
+      "kind": "keepcut",
+      "cost": "There is no B side to show you. Sharp is not a setting -- it is 3-6x the compute on all three escape-time exhibits, and Mandelbrot already lagged. This asks whether that work is worth queueing, so answer the picture, not the price.",
+      "unblocks": "whether to queue the sharp-render job at all",
+      "items": [
+        { "name": "Newton fractal", "spiral": "Newton fractal" }
+      ]
+    },
+    {
+      "id": "overlap-mode",
+      "scope": "SCREEN",
+      "source": "PARTY-HANDOFF 8.0 Q5",
+      "question": "Two exhibits in one frame -- fading out behind, or staying?",
+      "watch": "what happens to the previous shape when the new one arrives",
+      "kind": "pair",
+      "cost": "B (persistent) roughly DOUBLES render cost. If it stutters, that is the price showing, not the look -- say so and I will log it as a cost rejection rather than a taste one.",
+      "unblocks": "overlapMode default, and whether the expensive exhibits need vetoing from layering",
+      "sides": [
+        { "label": "A", "name": "transition (the old shape fades away behind the new one)",
+          "config": { "overlapMode": 1, "overlapAmount": 0.45, "overlapFade": 12 } },
+        { "label": "B", "name": "persistent (it stays underneath for the whole dwell)",
+          "config": { "overlapMode": 2, "overlapAmount": 0.45, "overlapFade": 12 } }
+      ]
+    },
+    {
+      "id": "exhibit-veto",
+      "scope": "SCREEN",
+      "source": "PARTY-HANDOFF 8.0 Q4",
+      "question": "Keep this one in the room, or cut it?",
+      "watch": "whether it performs, and whether it cuts instead of dissolving",
+      "kind": "keepcut",
+      "note": "Capped at the flagged-risky ones rather than touring all 38. Mandelbrot lagged; the opaque ones repaint the whole frame and can only ever be the bottom overlap layer, which may break the flow-into-each-other feel even when they run fine.",
+      "unblocks": "the veto list -- which exhibits the room never shows",
+      "items": [
+        { "name": "Mandelbrot set (lagged; opaque)", "spiral": "Mandelbrot set" },
+        { "name": "Julia set (opaque)", "spiral": "Julia set" },
+        { "name": "Moiré interference (opaque)", "spiral": "Moiré interference" },
+        { "name": "Cellular automaton (opaque, grid-locked)", "spiral": "Cellular automaton" },
+        { "name": "Game of Life (opaque, grid-locked)", "spiral": "Game of Life" },
+        { "name": "Ulam spiral (opaque, 16 s comet loop)", "spiral": "Ulam spiral" }
+      ]
+    },
+
+    {
+      "id": "nucleus-snap-points",
+      "scope": "SCREEN",
+      "source": "STATE 2026-07-25 (built today, unseen)",
+      "question": "Is this bloom worth keeping as a starting point?",
+      "watch": "the centre, the four streams, and whether the corners ever light",
+      "kind": "keepcut",
+      "night": 2,
+      "note": "Each of these sets all 19 bloom knobs at once. The question is not which is prettiest -- it is which are worth landing on before tuning by hand.",
+      "unblocks": "which of the 8 snap points survive",
+      "items": [
+        { "name": "mist -- soft, huge, no edges", "preset": "mist" },
+        { "name": "pinpoint -- tiny bright grains", "preset": "pinpoint" },
+        { "name": "furnace -- all centre, no reach", "preset": "furnace" },
+        { "name": "four corners -- the arrival is the event", "preset": "four corners" },
+        { "name": "heartbeat -- two big slow pulses", "preset": "heartbeat" },
+        { "name": "swarm dense -- twenty small, packed", "preset": "swarm dense" },
+        { "name": "hard edges -- dark between the pulses", "preset": "hard edges" },
+        { "name": "flood -- everything at the top of its range", "preset": "flood" }
+      ]
+    },
+    {
+      "id": "cards",
+      "scope": "LAMPS",
+      "source": "PARTY-HANDOFF 8.0 Q7",
+      "question": "Does this colour mode earn its place?",
+      "watch": "the lamps only",
+      "kind": "keepcut",
+      "night": 2,
+      "note": "Cutting three would make the catalog better than adding an eighth. Ember is the one to watch -- its flare may be too rare to ever notice.",
+      "unblocks": "which of the seven cards stay in the catalog",
+      "items": [
+        { "name": "Spectrum", "light": "Spectrum" },
+        { "name": "Monochrome", "light": "Monochrome" },
+        { "name": "Split", "light": "Split" },
+        { "name": "Triad", "light": "Triad" },
+        { "name": "Wander", "light": "Wander" },
+        { "name": "Ember (watch for the flare)", "light": "Ember" },
+        { "name": "Runner (a band moving outward, not a lamp-by-lamp chase)", "light": "Runner" }
+      ]
+    }
+  ],
+
+  "_not_asked_here": [
+    "8.0 Q9 (31 sliders -- collapse the chaos/order pairs into one knob?) and Q10 (which",
+    "LFO patches are worth keeping) are deliberately absent. Both need K. operating the",
+    "dashboard directly, not watching a driven pair. Fable's call; flagged rather than",
+    "silently dropped.",
+    "",
+    "The accent now appearing in the ambient ramp (STATE 2026-07-25) is also absent: there",
+    "is no runtime flag to turn it back off, so there is no B side to show. It needs a",
+    "code change to ask properly, and it is worth asking properly -- it reverses a call",
+    "somebody made deliberately.",
+    "",
+    "8.0 Q3 (attract dwell 25-45 s) is absent because dwell is randomised per cycle and",
+    "not a config key. Auditioning it means the dashboard's skip button, not a pair."
+  ]
+}

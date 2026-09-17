@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Deep House — Play</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #04050a; --panel: #0e1424; --line: rgba(150,170,220,0.22);
+    --fg: #c8d2eb; --dim: #8a93b4; --accent: #f2c94c;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 16px/1.4 'Cascadia Code', ui-monospace, monospace; overflow: hidden;
+    -webkit-user-select: none; user-select: none; touch-action: none; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; padding: env(safe-area-inset-top,16px) 16px env(safe-area-inset-bottom,16px); }
+  .screen.hidden { display: none; }
+  .brand { letter-spacing: 0.12em; color: #b8a9e0; font-weight: 600; font-size: 15px;
+    margin-top: 8px; text-transform: uppercase; }
+  #join-msg { color: var(--dim); margin: 18px 0 10px; text-align: center; min-height: 1.4em; }
+  #code-display { font-size: 34px; letter-spacing: 0.3em; color: var(--fg); margin: 6px 0 18px; }
+  #keypad { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; width: 100%; max-width: 420px; }
+  .key { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--fg); font: 600 18px 'Cascadia Code', ui-monospace, monospace;
+    min-height: 46px; touch-action: manipulation; }
+  .key.wide { grid-column: span 2; color: var(--dim); }
+  .key:active { border-color: var(--accent); color: var(--accent); }
+
+  #play { justify-content: flex-start; }
+  #play-prompt { color: var(--dim); text-align: center; min-height: 1.6em; margin: 10px 0 4px;
+    max-width: 90vw; }
+  #controls { display: flex; flex-direction: column; align-items: center; gap: 16px;
+    width: 100%; max-width: 480px; margin-top: 8px; flex: 1; justify-content: center; }
+
+  .ctl-btn { width: 100%; min-height: 64px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; color: var(--fg); font: 700 18px 'Cascadia Code', ui-monospace, monospace;
+    letter-spacing: 0.06em; touch-action: manipulation; }
+  .ctl-btn:active, .ctl-btn.commit:active { border-color: var(--accent); color: var(--accent); background: #171f36; }
+  .ctl-btn.commit { min-height: 96px; font-size: 22px; }
+
+  .dial { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+  .dial-face { position: relative; width: min(70vw, 280px); aspect-ratio: 1;
+    border-radius: 50%; background: var(--panel); border: 3px solid var(--line);
+    touch-action: none; }
+  .dial-handle { position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 10px var(--accent); pointer-events: none; }
+  .dial-label { color: var(--dim); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<div id="join" class="screen">
+  <div class="brand">DEEP HOUSE</div>
+  <div id="join-msg">enter the room code</div>
+  <div id="code-display">_ _ _ _</div>
+  <div id="keypad"></div>
+</div>
+
+<div id="play" class="screen hidden">
+  <div id="play-prompt"></div>
+  <div id="controls"></div>
+</div>
+
+<script src="play.js"></script>
+</body>
+</html>

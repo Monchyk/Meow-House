@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deep House — help</title>
+  <style>
+    color-scheme: dark;
+    body { max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; color: #eeeaf6; background: #0a0811; font: 18px/1.65 system-ui, sans-serif; }
+    h1 { font-size: clamp(2.4rem, 10vw, 4.8rem); line-height: 1; }
+    h2 { margin-top: 2.2em; color: #f2c94c; }
+    a { color: #bda7ff; }
+    code { padding: .12em .35em; border-radius: .3em; background: #242033; }
+    li { margin: .55em 0; }
+    .warning { padding: 12px 16px; border-left: 3px solid #f2c94c; background: #1b1723; }
+  </style>
+</head>
+<body>
+  <p><a href="index.html">← All Deep House pages</a></p>
+  <h1>Help</h1>
+  <p class="warning">Some pages flash, pulse, or move quickly. Close the page if that is uncomfortable. Smart lights are optional.</p>
+
+  <h2>Start</h2>
+  <ol>
+    <li>Open this project's folder.</li>
+    <li>Right-click an empty spot and choose <strong>Open in Terminal</strong>.</li>
+    <li>Type <code>python controller/serve.py</code> and press Enter. If that fails, try <code>py controller/serve.py</code>.</li>
+    <li>Leave the terminal open. In your browser, visit <code>http://127.0.0.1:8800/</code>.</li>
+  </ol>
+
+  <h2>The House</h2>
+  <ul>
+    <li>Press any key to begin.</li>
+    <li>Up and Down look through choices.</li>
+    <li>Enter travels, opens, or confirms.</li>
+    <li>Escape goes back.</li>
+    <li>H stirs the colour and movement.</li>
+    <li>There is no score and no wrong path.</li>
+  </ul>
+
+  <h2>Party</h2>
+  <ul>
+    <li>Hold Up for more energy; hold Down for less.</li>
+    <li>Press P to change steering mode.</li>
+    <li>Press lowercase h to preview the next visual.</li>
+    <li>Hold Shift and press H to keep the preview.</li>
+    <li>Press D to show or hide status information.</li>
+  </ul>
+
+  <h2>Games</h2>
+  <p>Up/Down or W/S moves. Enter or Space selects. Backspace or Left Arrow goes back. Escape leaves the game.</p>
+
+  <h2>Big screen</h2>
+  <p>Press F11 to enter or leave full screen. For two screens, open <code>house.html</code> in one window and <code>display.html</code> in another. Put the display window on the television or projector.</p>
+
+  <h2>Phone or another device</h2>
+  <p>The main experience runs on the computer. A phone or second device is optional and must use the same Wi-Fi.</p>
+  <ol>
+    <li>On Windows, open Command Prompt.</li>
+    <li>Type <code>ipconfig</code> and press Enter.</li>
+    <li>Find <strong>IPv4 Address</strong>.</li>
+    <li>On the computer, open <code>http://YOUR-IP:8800/qr/</code> with that number in place of <code>YOUR-IP</code>.</li>
+    <li>Right-click the launcher in Chrome or Edge and choose <strong>Create QR code for this page</strong>.</li>
+    <li>Scan the QR code with the phone's Camera app.</li>
+  </ol>
+  <p>Grey cards marked <strong>Not in public version</strong> are shown for completeness but cannot be opened.</p>
+
+  <h2>Stop</h2>
+  <p>Close the browser windows. Return to the terminal, hold Ctrl, and tap C.</p>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deep House — Part Game</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #04050a; overflow: hidden; }
+  /* the whole surface is one canvas; the 4-button remote (or keyboard) drives it. */
+  #stage { display: block; width: 100vw; height: 100dvh; background: #04050a; touch-action: none; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<!-- reused engine, unchanged -->
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script src="viz/organisms.js"></script>
+<!-- the arcade -->
+<script src="menu-data.js"></script><!-- room membership; powers game.html?room=<id> -->
+<script src="menu-progress.js"></script><!-- the solved-store; the arcade's DEPLOY writes it -->
+<script src="game-spiral.js"></script>
+<script src="game-ink.js"></script><!-- the puzzle layer's floored palette (host.ink) -->
+<script src="game-dissolve.js"></script><!-- the solve transition: puzzle → point cloud → sucked in -->
+<script src="games/registry.js"></script>
+<!-- games register themselves on load; the manifest emits one <script> per listed id.
+     ADDING A GAME = one line in games/manifest.js. Do not hand-add <script> tags here. -->
+<script src="games/manifest.js"></script>
+<!-- shell last: it reads the registry and wires input + the RAF loop -->
+<script src="game.js"></script>
+</body>
+</html>

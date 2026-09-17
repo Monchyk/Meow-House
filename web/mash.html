@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep House — Spiral Mash</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  header { padding: 14px 20px 6px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: #b8a9e0; }
+  .sub { color: #6a7290; font-size: 12px; max-width: 940px; }
+  .controls { padding: 8px 20px 12px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  .controls label { color: #8a93b4; }
+  select, button { background: #0c1020; color: #c8d2eb; border: 1px solid #222a44;
+    border-radius: 5px; padding: 5px 8px; font: inherit; cursor: pointer; }
+  #sigma, #strength { width: 200px; vertical-align: middle; }
+  #sigval, #strval { color: #f2c94c; }
+  input[type=range] { vertical-align: middle; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 6px 20px 24px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .tile { position: relative; background: #04050a; border: 1px solid #171a2b; border-radius: 6px; overflow: hidden; }
+  .tile canvas { display: block; width: 100%; height: 62vh; }
+  @media (max-width: 900px) { .tile canvas { height: 46vh; } }
+  .tag { position: absolute; top: 8px; left: 10px; font-size: 13px; color: #e6ebf7; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  .tag b { color: #f2c94c; }
+  .desc { position: absolute; bottom: 8px; left: 10px; right: 10px; font-size: 11px; color: #7a8299; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  .swap { color: #6a7290; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Deep House — Spiral Mash</h1>
+  <div class="sub">Two spirals, their math fused three ways, side by side — pick whichever is coolest.
+    <b>Push/pull</b> adds B's shape onto A so B shoves A around; <b>Morph</b> fades A's equations into B's
+    (a true hybrid at 50%); <b>Nested</b> plants little A's along B's body, carried by it. Change A and B,
+    drag σ (chaos↔order) and the strength/blend knob, and watch them tug.</div>
+</header>
+<div class="controls">
+  <label>A <select id="pa"></select></label>
+  <label>B <select id="pb"></select></label>
+  <button id="swap" class="swap">⇄ swap</button>
+  <label>σ <input id="sigma" type="range" min="0" max="1" step="0.005" value="0.5"> <span id="sigval">0.50</span></label>
+  <label><input id="sweep" type="checkbox" checked> sweep</label>
+  <label>strength / blend <input id="strength" type="range" min="0" max="1" step="0.01" value="0.5"> <span id="strval">0.50</span></label>
+  <label>palette <select id="pal"></select></label>
+  <label><input id="spin" type="checkbox" checked> stir</label>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+(function () {
+  "use strict";
+  var TAU = Math.PI * 2;
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+
+  /* ── palettes (self-contained; hex ramps) ─────────────────────────────────── */
+  var PALS = [
+    { name: "Deep House", cols: ["8E7CC3", "4A8B8C", "C77DBB", "F2C94C", "5B6CE8"] },
+    { name: "Synthwave", cols: ["ff5c8a", "8a5cff", "5cd0ff", "fff05c", "ff9a5c"] },
+    { name: "Aurora", cols: ["5cffb0", "5cd0ff", "b98cff", "e8ff5c", "5c8aff"] },
+    { name: "Ember", cols: ["ffb15c", "ff6b5c", "ffe15c", "d95cff", "5cc9ff"] },
+  ];
+  function hexToRgb(h) { var n = parseInt(h, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
+  function ramp(cols) { return cols.map(hexToRgb); }
+  function sampleRamp(rr, t) {
+    t = ((t % 1) + 1) % 1; var s = t * rr.length, i = Math.floor(s) % rr.length, n = (i + 1) % rr.length;
+    var f = s - Math.floor(s), sm = f * f * (3 - 2 * f);
+    return { r: lerp(rr[i].r, rr[n].r, sm) | 0, g: lerp(rr[i].g, rr[n].g, sm) | 0, b: lerp(rr[i].b, rr[n].b, sm) | 0 };
+  }
+  function rgba(c, a) { return "rgba(" + c.r + "," + c.g + "," + c.b + "," + a + ")"; }
+
+  /* ── the spiral library: each pt(u∈0..1, σ) → [x,y] in ~[-1,1]. σ morphs each from a
+        detuned/open form (chaos) to a resolved/closed one (order). ──────────────── */
+  var SPIRALS = [
+    { name: "Rose", fn: function (u, s) { var k = lerp(3.4, 5, s), t = u * TAU, r = Math.cos(k * t); return [r * Math.cos(t), r * Math.sin(t)]; } },
+    { name: "Lissajous", fn: function (u, s) { var b = lerp(2.55, 3, s), t = u * TAU; return [Math.sin(3 * t), Math.sin(b * t)]; } },
+    { name: "Spiral", fn: function (u, s) { var turns = lerp(2, 4.5, s), t = u * TAU * turns, r = u; return [r * Math.cos(t), r * Math.sin(t)]; } },
+    { name: "Epicycloid", fn: function (u, s) { var f = lerp(4.3, 5, s), t = u * TAU; return [0.62 * (Math.cos(t) + 0.55 * Math.cos(f * t)), 0.62 * (Math.sin(t) + 0.55 * Math.sin(f * t))]; } },
+    { name: "Lemniscate", fn: function (u, s) { var t = u * TAU, d = 1 + Math.sin(t) * Math.sin(t), w = lerp(0.6, 1, s); return [Math.cos(t) / d, w * Math.sin(t) * Math.cos(t) / d]; } },
+    { name: "Superformula", fn: function (u, s) { var m = Math.round(lerp(5, 6, s)), t = u * TAU;
+        var r = Math.pow(Math.pow(Math.abs(Math.cos(m * t / 4)), 7) + Math.pow(Math.abs(Math.sin(m * t / 4)), 7), -1 / 6);
+        r = clamp(r, 0, 1.4); return [r * Math.cos(t) * 0.72, r * Math.sin(t) * 0.72]; } },
+    { name: "Butterfly", fn: function (u, s) { var t = u * TAU * lerp(3, 6, s);
+        var r = Math.exp(Math.cos(t)) - 2 * Math.cos(4 * t) + Math.pow(Math.sin(t / 12), 5); r *= 0.28;
+        return [r * Math.sin(t), -r * Math.cos(t)]; } },
+    { name: "Hypotrochoid", fn: function (u, s) { var R = 1, rr = lerp(0.28, 0.25, s), d = 0.75, t = u * TAU * 5;
+        var k = (R - rr) / rr; return [0.5 * ((R - rr) * Math.cos(t) + d * Math.cos(k * t)), 0.5 * ((R - rr) * Math.sin(t) - d * Math.sin(k * t))]; } },
+  ];
+
+  /* ── DOM ──────────────────────────────────────────────────────────────────── */
+  var paEl = document.getElementById("pa"), pbEl = document.getElementById("pb"), palEl = document.getElementById("pal");
+  var sigmaEl = document.getElementById("sigma"), sigval = document.getElementById("sigval");
+  var strEl = document.getElementById("strength"), strval = document.getElementById("strval");
+  var sweepEl = document.getElementById("sweep"), spinEl = document.getElementById("spin"), swapEl = document.getElementById("swap");
+  var grid = document.getElementById("grid");
+  SPIRALS.forEach(function (s, i) {
+    paEl.appendChild(opt(i, s.name)); pbEl.appendChild(opt(i, s.name));
+  });
+  paEl.value = 0; pbEl.value = 2;                                   // Rose × Spiral to start
+  PALS.forEach(function (p, i) { palEl.appendChild(opt(i, p.name)); });
+  function opt(v, t) { var o = document.createElement("option"); o.value = v; o.textContent = t; return o; }
+  swapEl.addEventListener("click", function () { var a = paEl.value; paEl.value = pbEl.value; pbEl.value = a; });
+
+  var MECHS = [
+    { key: "push",   tag: "Push / pull",  desc: "A + strength·B — B's whole shape is added onto A, shoving it in B's directions." },
+    { key: "morph",  tag: "Morph blend",  desc: "lerp(A, B, blend) — A's equations fade into B's; 50% is a true hybrid." },
+    { key: "nested", tag: "Nested",       desc: "little A's planted along B's body, scaled by strength and carried by B." },
+  ];
+  var tiles = MECHS.map(function (m) {
+    var wrap = document.createElement("div"); wrap.className = "tile";
+    var cv = document.createElement("canvas");
+    var tag = document.createElement("div"); tag.className = "tag"; tag.innerHTML = "<b>" + m.tag + "</b>";
+    var desc = document.createElement("div"); desc.className = "desc"; desc.textContent = m.desc;
+    wrap.appendChild(cv); wrap.appendChild(tag); wrap.appendChild(desc); grid.appendChild(wrap);
+    return { m: m, cv: cv, ctx: cv.getContext("2d") };
+  });
+  function fit() { tiles.forEach(function (t) { var w = t.cv.clientWidth, h = t.cv.clientHeight; if (t.cv.width !== w || t.cv.height !== h) { t.cv.width = w; t.cv.height = h; } }); }
+  fit(); window.addEventListener("resize", fit);
+
+  /* ── drawing ──────────────────────────────────────────────────────────────── */
+  function frame(ctx, w, h) { ctx.fillStyle = "rgba(4,5,10,0.2)"; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = "lighter"; }
+  function endFrame(ctx) { ctx.globalCompositeOperation = "source-over"; }
+  // stroke a pt(u)->[x,y] (unit space) as a palette-walking polyline.
+  function drawPath(ctx, pt, N, rr, alpha, R, cx, cy, phase) {
+    var pts = [];
+    for (var i = 0; i <= N; i++) { var p = pt(i / N); pts.push([cx + p[0] * R, cy + p[1] * R]); }
+    var B = 60, per = Math.ceil(N / B);
+    ctx.lineWidth = 1.6; ctx.lineCap = "round";
+    for (var b = 0; b * per < N; b++) {
+      var from = b * per, to = Math.min(N, from + per);
+      ctx.strokeStyle = rgba(sampleRamp(rr, from / N + phase), alpha);
+      ctx.beginPath(); ctx.moveTo(pts[from][0], pts[from][1]);
+      for (var j = from + 1; j <= to; j++) ctx.lineTo(pts[j][0], pts[j][1]);
+      ctx.stroke();
+    }
+  }
+
+  function render(t, A, B, sig, str, spin, now) {
+    var ctx = t.ctx, w = t.cv.width, h = t.cv.height, cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.4;
+    frame(ctx, w, h);
+    var rr = ramp(PALS[palEl.value | 0].cols), stir = spin ? now / 1000 * 0.4 : 0, ph = now / 1000 * 0.03;
+    if (t.m.key === "morph") {
+      drawPath(ctx, function (u) { var a = A(u, sig), b = B(u, sig); return [lerp(a[0], b[0], str), lerp(a[1], b[1], str)]; },
+        320, rr, 0.62, R, cx, cy, ph);
+    } else if (t.m.key === "push") {
+      // A(u) + strength · B(u) rotated by the stir angle → B pushes A around
+      var ca = Math.cos(stir), sa = Math.sin(stir), k = 1 / (1 + str * 0.9);
+      drawPath(ctx, function (u) {
+        var a = A(u, sig), b = B(u, sig);
+        var bx = b[0] * ca - b[1] * sa, by = b[0] * sa + b[1] * ca;
+        return [(a[0] + str * bx) * k, (a[1] + str * by) * k];
+      }, 320, rr, 0.6, R, cx, cy, ph);
+    } else { // nested: host B, small A's along it, oriented by B's local tangent
+      var M = 34, sc = 0.1 + str * 0.32, du = 0.004;
+      drawPath(ctx, function (u) { return B(u, sig); }, 260, rr, 0.28, R, cx, cy, ph);   // faint host
+      for (var jj = 0; jj < M; jj++) {
+        var u0 = jj / M + stir * 0.02, host = B(u0, sig), h2 = B(u0 + du, sig);
+        var ang = Math.atan2(h2[1] - host[1], h2[0] - host[0]);
+        var ca2 = Math.cos(ang), sa2 = Math.sin(ang), hx = cx + host[0] * R, hy = cy + host[1] * R;
+        // draw the little A with its own transform (rotate to B's tangent, scale, place)
+        drawMini(ctx, A, sig, hx, hy, sc * R, ca2, sa2, rr, jj / M + ph, 0.5);
+      }
+    }
+    endFrame(ctx);
+  }
+  function drawMini(ctx, A, sig, ox, oy, s, ca, sa, rr, phase, alpha) {
+    var N = 90, pts = [];
+    for (var i = 0; i <= N; i++) { var a = A(i / N, sig); pts.push([ox + (a[0] * s * ca - a[1] * s * sa), oy + (a[0] * s * sa + a[1] * s * ca)]); }
+    var B = 24, per = Math.ceil(N / B); ctx.lineWidth = 1.3;
+    for (var b = 0; b * per < N; b++) {
+      var from = b * per, to = Math.min(N, from + per);
+      ctx.strokeStyle = rgba(sampleRamp(rr, from / N + phase), alpha);
+      ctx.beginPath(); ctx.moveTo(pts[from][0], pts[from][1]);
+      for (var j = from + 1; j <= to; j++) ctx.lineTo(pts[j][0], pts[j][1]);
+      ctx.stroke();
+    }
+  }
+
+  var last = performance.now();
+  function loop(now) {
+    var A = SPIRALS[paEl.value | 0].fn, B = SPIRALS[pbEl.value | 0].fn;
+    var sig = sweepEl.checked ? 0.5 - 0.5 * Math.cos(now / 1000 * 0.25) : parseFloat(sigmaEl.value);
+    if (sweepEl.checked) sigmaEl.value = sig;
+    sigval.textContent = sig.toFixed(2);
+    var str = parseFloat(strEl.value); strval.textContent = str.toFixed(2);
+    var spin = spinEl.checked;
+    tiles.forEach(function (t) { render(t, A, B, sig, str, spin, now); });
+    last = now; requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

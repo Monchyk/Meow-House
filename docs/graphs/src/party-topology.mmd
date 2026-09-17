@@ -1,0 +1,19 @@
+flowchart LR
+    Remote[Hue remote] --> Bridge[Hue Bridge]
+    Bridge -->|CLIP event stream| Listener[listen.py]
+    Listener -->|raw gesture<br/>POST /party/pub| Relay[serve.py :8800]
+    Keys[Keyboard fallback] --> Beamer[party.html on beamer]
+    Phone[dashboard.html<br/>phone or laptop] <-->|POST commands<br/>SSE snapshots| Relay
+    Relay -->|SSE commands| Beamer
+
+    subgraph Authority[Authoritative browser process]
+      Beamer --> Engine[party.js / PARTY]
+      Engine --> Canvas[AmbientDirector / canvas]
+      Engine --> LampAdapter[party-main.js lamp adapter]
+      Store[(localStorage<br/>deephouse.party)] <--> Engine
+    end
+
+    LampAdapter -->|same-origin /api/*| Relay
+    Relay -->|reverse proxy| HueApp[C# Hue app :5000]
+    HueApp --> Bridge --> Lamps[Physical lamps]
+

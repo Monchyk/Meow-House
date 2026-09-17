@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Helix Deconstruction Grid</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  header { padding: 14px 20px 6px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: #b8a9e0; }
+  .sub { color: #6a7290; font-size: 12px; }
+  .controls { padding: 8px 20px 12px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .controls label { color: #8a93b4; }
+  #sigma { width: 300px; vertical-align: middle; }
+  #sigval { color: #f2c94c; }
+  input[type=range] { vertical-align: middle; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 6px 20px 24px; }
+  .tile { position: relative; background: #04050a; border: 1px solid #171a2b; border-radius: 6px; overflow: hidden; }
+  .tile canvas { display: block; width: 100%; height: 46vh; }
+  .tag { position: absolute; top: 8px; left: 10px; font-size: 13px; color: #e6ebf7; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  .tag b { color: #f2c94c; }
+  .desc { position: absolute; bottom: 8px; left: 10px; right: 10px; font-size: 11px; color: #7a8299; text-shadow: 0 1px 3px #000; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Helix Deconstruction Grid</h1>
+  <div class="sub">Six ways the helix comes apart as σ falls and re-forms as it rises. Auto-sweep to compare,
+    or scrub σ by hand. Pick the one (or two) worth developing.</div>
+</header>
+<div class="controls">
+  <label>σ (chaos ↔ order) <input id="sigma" type="range" min="0" max="1" step="0.005" value="0.5"> <span id="sigval">0.50</span></label>
+  <label><input id="sweep" type="checkbox" checked> auto-sweep</label>
+  <label>reach <input id="reach" type="range" min="0.2" max="1.4" step="0.05" value="0.9" style="width:110px"> <span id="reachval">0.90</span></label>
+  <label>orbit bend <input id="arm" type="range" min="0" max="0.5" step="0.02" value="0.2" style="width:110px"> <span id="armval">0.20</span></label>
+</div>
+<div class="grid" id="grid"></div>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SYM = window.SYM;
+  var PALETTE = ["8E7CC3", "4A8B8C", "C77DBB", "F2C94C", "5B6CE8"];
+  var TILES = [
+    { mode: "unwind",  desc: "twist relaxes to a flat ladder, then re-coils (smooth)" },
+    { mode: "merge",   desc: "two straight lines at the sides slide together into the helix" },
+    { mode: "gravity", desc: "tight up top, strands pulled apart toward the bottom" },
+    { mode: "orbit",   desc: "unravels into spiral arms round two orbiting planets" },
+    { mode: "unzip",   desc: "base pairs release from the bottom, strands splay loose" },
+    { mode: null,      desc: "clean helix (σ=1 target), held steady for reference" },
+  ];
+  var sigmaEl = document.getElementById("sigma"), sigval = document.getElementById("sigval");
+  var sweepEl = document.getElementById("sweep");
+  var reachEl = document.getElementById("reach"), reachval = document.getElementById("reachval");
+  var armEl = document.getElementById("arm"), armval = document.getElementById("armval");
+  var grid = document.getElementById("grid"), tiles = [];
+
+  TILES.forEach(function (spec) {
+    var wrap = document.createElement("div"); wrap.className = "tile";
+    var cv = document.createElement("canvas");
+    var tag = document.createElement("div"); tag.className = "tag"; tag.innerHTML = "<b>" + (spec.mode || "clean") + "</b>";
+    var desc = document.createElement("div"); desc.className = "desc"; desc.textContent = spec.desc;
+    wrap.appendChild(cv); wrap.appendChild(tag); wrap.appendChild(desc); grid.appendChild(wrap);
+    tiles.push({ cv: cv, ctx: cv.getContext("2d"), spec: spec, ex: null, reach: null, arm: null, ref: spec.mode === null });
+  });
+
+  function build(t, reach, arm) {
+    var _t = t.ex ? t.ex._t : 0;
+    t.ex = SYM.buildHelix({ deconstruct: t.spec.mode, motion: null, rhythm: "sigma",
+      spread: reach, arm: arm, title: t.spec.mode || "clean" });
+    t.ex._t = _t; t.reach = reach; t.arm = arm;
+  }
+  function fit(t) { var w = t.cv.clientWidth, h = t.cv.clientHeight; if (t.cv.width !== w || t.cv.height !== h) { t.cv.width = w; t.cv.height = h; } }
+  tiles.forEach(fit);
+  window.addEventListener("resize", function () { tiles.forEach(fit); });
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var reach = parseFloat(reachEl.value), arm = parseFloat(armEl.value);
+    reachval.textContent = reach.toFixed(2); armval.textContent = arm.toFixed(2);
+    var sigma;
+    if (sweepEl.checked) { sigma = 0.5 - 0.5 * Math.cos(now / 1000 * 0.3); sigmaEl.value = sigma; }
+    else sigma = parseFloat(sigmaEl.value);
+    sigval.textContent = sigma.toFixed(2);
+    tiles.forEach(function (t) {
+      if (t.reach !== reach || t.arm !== arm || !t.ex) build(t, reach, arm);
+      var sg = t.ref ? 1 : sigma;
+      t.ex.update(dt, sg * 2 - 1); t.ex.q = sg;
+      t.ex.draw(t.ctx, t.cv.width, t.cv.height, dt, { alpha: 0.9, fade: 0.22, color: SYM.orderColor(sg, PALETTE), tint: null });
+    });
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

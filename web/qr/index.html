@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deep House — QR launcher</title>
+  <style>
+    :root { color-scheme: dark; --ink:#eef1fa; --muted:#9ca8c6; --panel:#121826; --line:rgba(150,170,220,.22); --accent:#bda7ff; --warn:#f2c94c; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:32px 20px 70px; background:#0a0d16; color:var(--ink); font:16px/1.55 system-ui,"Segoe UI",sans-serif; }
+    main { width:min(860px,100%); margin:auto; }
+    h1 { margin:.4em 0 .2em; font-size:clamp(2.2rem,8vw,4.6rem); line-height:1; }
+    h2 { margin-top:2em; color:var(--warn); }
+    a { color:inherit; }
+    code { padding:.12em .35em; border-radius:.3em; background:rgba(255,255,255,.08); word-break:break-all; }
+    .lead,.small { color:var(--muted); }
+    .status { margin:24px 0; padding:16px 18px; border-left:3px solid var(--accent); background:var(--panel); }
+    .status.bad { border-color:var(--warn); }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+    .grid a { padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--panel); text-decoration:none; }
+    .grid a:hover,.grid a:focus-visible { border-color:var(--accent); outline:none; }
+    .grid strong { display:block; color:var(--accent); }
+    .grid span { color:var(--muted); font-size:.9rem; }
+    li { margin:.65em 0; }
+  </style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← All Deep House pages</a></p>
+  <h1>Phone and second-screen launcher</h1>
+  <p class="lead">Deep House itself runs on the main computer. Use this launcher only when a phone, tablet, television, or second computer should control or watch alongside it.</p>
+
+  <div id="status" class="status"></div>
+
+  <h2>Put this launcher on your phone with one QR code</h2>
+  <ol>
+    <li>Make sure the computer and phone use the same Wi-Fi.</li>
+    <li>On the computer, right-click an empty part of this page.</li>
+    <li>In Chrome or Edge, click <strong>Create QR code for this page</strong>.</li>
+    <li>Open the Camera app on the phone and point it at the QR code.</li>
+    <li>Tap the message that appears. This launcher opens on the phone.</li>
+    <li>Tap one of the available doors below.</li>
+  </ol>
+  <p class="small">If your browser has no “Create QR code” option, type the address shown above into the phone's browser instead.</p>
+
+  <h2>Available doors</h2>
+  <div class="grid">
+    <a href="../index.html"><strong>All pages</strong><span>The complete public catalogue.</span></a>
+    <a href="../house.html"><strong>The House</strong><span>The main experience. Best controlled on the main computer.</span></a>
+    <a href="../party.html"><strong>Party</strong><span>The full-screen generative show.</span></a>
+    <a href="../dashboard.html"><strong>Party Dashboard</strong><span>Live steering and status for the party page.</span></a>
+    <a href="../the-basement.html"><strong>The Basement</strong><span>A compact phone-sized operator console.</span></a>
+    <a href="../menu.html"><strong>Menu</strong><span>A simple four-button navigation screen.</span></a>
+  </div>
+</main>
+<script>
+  (function () {
+    var status = document.getElementById("status");
+    var localOnly = /^(127\.|localhost$|\[?::1\]?$)/i.test(location.hostname);
+    if (localOnly) {
+      status.className = "status bad";
+      status.innerHTML = "<strong>This address works only on this computer.</strong><br>" +
+        "Open Command Prompt, type <code>ipconfig</code>, and find <strong>IPv4 Address</strong>. " +
+        "Then reopen this page as <code>http://YOUR-IP:8800/qr/</code>. Example: " +
+        "<code>http://192.168.1.23:8800/qr/</code>.";
+    } else {
+      status.innerHTML = "<strong>This launcher is ready to share.</strong><br>Current address: <code>" +
+        location.href.replace(/[<>&]/g, "") + "</code>";
+    }
+  })();
+</script>
+</body>
+</html>

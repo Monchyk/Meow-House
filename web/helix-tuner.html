@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Helix Tuner</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.5 "Cascadia Code", Consolas, monospace; height: 100%; }
+  .wrap { display: grid; grid-template-columns: 1fr 340px; gap: 14px; height: 100vh; padding: 14px; box-sizing: border-box; }
+  .stage { position: relative; background: #04050a; border: 1px solid #171a2b; border-radius: 8px; overflow: hidden; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  .panel { overflow-y: auto; padding-right: 4px; }
+  h1 { font-size: 16px; font-weight: 600; color: #b8a9e0; margin: 2px 0 2px; }
+  .sub { color: #6a7290; font-size: 11px; margin-bottom: 12px; }
+  .row { margin: 9px 0; }
+  .row label { display: block; color: #8a93b4; font-size: 12px; margin-bottom: 2px; }
+  .row .v { color: #f2c94c; float: right; }
+  input[type=range] { width: 100%; vertical-align: middle; }
+  select { width: 100%; background: #0d1220; color: #dce6fb; border: 1px solid #2a3350; border-radius: 5px; padding: 5px; font: inherit; }
+  .seg { margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid #171a2b; color: #6a7290; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .btns { display: flex; gap: 8px; margin: 12px 0; }
+  button { flex: 1; background: #16203a; color: #dce6fb; border: 1px solid #2a3350; border-radius: 6px; padding: 8px; font: inherit; cursor: pointer; }
+  button:hover { background: #1e2a48; }
+  button.primary { background: #2a3f6e; border-color: #3a528e; }
+  .saved { color: #7fe0a0; font-size: 11px; height: 14px; }
+  textarea { width: 100%; height: 88px; background: #0d1220; color: #9aa4c6; border: 1px solid #2a3350; border-radius: 6px; font: 11px/1.4 ui-monospace, monospace; padding: 6px; resize: vertical; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage"><canvas id="cv"></canvas></div>
+  <div class="panel">
+    <h1>Helix Tuner</h1>
+    <div class="sub">Adjust the double helix yourself. Changes preview live and <b>save to the
+      gallery</b> (this browser) automatically. σ = the chaos↔symmetry swing the room drives.</div>
+
+    <div class="seg">the swing</div>
+    <div class="row"><label>σ (chaos ↔ order) <span class="v" id="v_sigma">0.50</span></label>
+      <input type="range" id="sigma" min="0" max="1" step="0.005" value="0.5"></div>
+    <div class="row"><label><input type="checkbox" id="sweep" checked> auto-sweep &nbsp; speed
+      <span class="v" id="v_sweepspd">0.30</span></label>
+      <input type="range" id="sweepspd" min="0.05" max="1" step="0.05" value="0.3"></div>
+
+    <div class="seg">form</div>
+    <div class="row"><label>deconstruction mode</label>
+      <select id="mode">
+        <option value="orbit">orbit (triangle → helix)</option>
+        <option value="unwind">unwind (flat ladder)</option>
+        <option value="merge">merge (two lines)</option>
+        <option value="gravity">gravity (top tight, bottom pulled)</option>
+        <option value="unzip">unzip (splay from bottom)</option>
+        <option value="none">none (clean helix, no deconstruct)</option>
+      </select></div>
+    <div id="sliders"></div>
+
+    <div class="btns">
+      <button class="primary" id="save">Save to gallery</button>
+      <button id="reset">Reset defaults</button>
+    </div>
+    <div class="saved" id="savedmsg"></div>
+    <div class="seg">config (copy to lock in)</div>
+    <textarea id="cfgout" readonly></textarea>
+  </div>
+</div>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SYM = window.SYM;
+  var KEY = "helixCfg";
+  var PALETTE = ["8E7CC3", "4A8B8C", "C77DBB", "F2C94C", "5B6CE8"];
+
+  // one row per tunable — matches the cfg keys doubleHelix() reads.
+  var CTRL = [
+    { k: "spread",     label: "reach (how hard orbit pulls)", min: 0.2,  max: 1.6, step: 0.05, def: 1 },
+    { k: "arm",        label: "orbit bend (0 = straight triangle)", min: 0, max: 0.5, step: 0.02, def: 0.28 },
+    { k: "orbitRate",  label: "orbit speed",              min: 0,    max: 0.6, step: 0.02, def: 0.26 },
+    { k: "openEase",   label: "helix hold (higher = more helix)", min: 0.5, max: 3, step: 0.1, def: 2.1 },
+    { k: "twists",     label: "twists",                   min: 1,    max: 6,   step: 0.25, def: 1.75 },
+    { k: "rungs",      label: "rungs",                    min: 8,    max: 48,  step: 1,    def: 32 },
+    { k: "radFrac",    label: "radius (thickness)",       min: 0.08, max: 0.35, step: 0.01, def: 0.13 },
+    { k: "heightFrac", label: "height",                   min: 0.5,  max: 1.0, step: 0.02, def: 0.78 },
+    { k: "spinRate",   label: "spin speed",               min: 0,    max: 1.5, step: 0.05, def: 0.5 },
+  ];
+
+  function loadSaved() { try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { return {}; } }
+
+  var modeEl = document.getElementById("mode");
+  var slidersEl = document.getElementById("sliders");
+  var cfgout = document.getElementById("cfgout");
+  var savedmsg = document.getElementById("savedmsg");
+
+  var inputs = {};
+  CTRL.forEach(function (c) {
+    var row = document.createElement("div"); row.className = "row";
+    var lab = document.createElement("label");
+    var val = document.createElement("span"); val.className = "v"; val.id = "v_" + c.k;
+    lab.textContent = c.label + " "; lab.appendChild(val);
+    var inp = document.createElement("input");
+    inp.type = "range"; inp.min = c.min; inp.max = c.max; inp.step = c.step; inp.id = "s_" + c.k;
+    row.appendChild(lab); row.appendChild(inp); slidersEl.appendChild(row);
+    inputs[c.k] = { inp: inp, val: val, c: c };
+    inp.addEventListener("input", onChange);
+  });
+  modeEl.addEventListener("change", onChange);
+
+  // seed controls from saved (or defaults)
+  (function init() {
+    var sv = loadSaved();
+    if (sv.deconstruct === null) modeEl.value = "none";
+    else if (sv.deconstruct) modeEl.value = sv.deconstruct;
+    CTRL.forEach(function (c) {
+      var v = (sv[c.k] != null) ? sv[c.k] : c.def;
+      inputs[c.k].inp.value = v;
+    });
+    refresh(false);
+  })();
+
+  function currentCfg() {
+    var cfg = { deconstruct: modeEl.value === "none" ? null : modeEl.value, motion: null, rhythm: "sigma" };
+    CTRL.forEach(function (c) { cfg[c.k] = parseFloat(inputs[c.k].inp.value); });
+    return cfg;
+  }
+
+  var previewCfg = null, ex = null, exKey = "";
+  function refresh(save) {
+    var cfg = currentCfg();
+    CTRL.forEach(function (c) {
+      inputs[c.k].val.textContent = (c.step < 1) ? parseFloat(inputs[c.k].inp.value).toFixed(2) : inputs[c.k].inp.value;
+    });
+    cfgout.value = JSON.stringify(cfg);
+    // rebuild the exhibit only when a shape param changed (keep its clock running)
+    var key = JSON.stringify(cfg);
+    if (key !== exKey) {
+      var _t = ex ? ex._t : 0;
+      ex = SYM.buildHelix(Object.assign({ title: "tuner" }, cfg));
+      ex._t = _t; exKey = key;
+    }
+    if (save) {
+      try { localStorage.setItem(KEY, JSON.stringify(cfg)); savedmsg.textContent = "✓ saved — the gallery uses this now"; }
+      catch (e) { savedmsg.textContent = "could not save (localStorage blocked)"; }
+    }
+  }
+  function onChange() { refresh(true); }   // live-save every change
+
+  document.getElementById("save").addEventListener("click", function () { refresh(true); });
+  document.getElementById("reset").addEventListener("click", function () {
+    modeEl.value = "orbit";
+    CTRL.forEach(function (c) { inputs[c.k].inp.value = c.def; });
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    savedmsg.textContent = "reset to defaults";
+    exKey = ""; refresh(false);
+  });
+
+  // ── render loop ──
+  var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+  var sigmaEl = document.getElementById("sigma"), vSigma = document.getElementById("v_sigma");
+  var sweepEl = document.getElementById("sweep"), sweepSpd = document.getElementById("sweepspd"), vSpd = document.getElementById("v_sweepspd");
+  function fit() { var w = cv.clientWidth, h = cv.clientHeight; if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } }
+  window.addEventListener("resize", fit); fit();
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    fit();
+    vSpd.textContent = parseFloat(sweepSpd.value).toFixed(2);
+    var sg;
+    if (sweepEl.checked) { sg = 0.5 - 0.5 * Math.cos(now / 1000 * parseFloat(sweepSpd.value)); sigmaEl.value = sg; }
+    else sg = parseFloat(sigmaEl.value);
+    vSigma.textContent = sg.toFixed(2);
+    if (ex) {
+      ex.update(dt, sg * 2 - 1); ex.q = sg;
+      ex.draw(ctx, cv.width, cv.height, dt, { alpha: 0.9, fade: 0.22, color: SYM.orderColor(sg, PALETTE), tint: null });
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

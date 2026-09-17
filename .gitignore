@@ -1,0 +1,21 @@
+# Local machine settings and credentials
+controller/config.json
+.env
+.env.*
+!.env.example
+
+# Generated Python files
+__pycache__/
+*.py[cod]
+
+# Editor and operating-system files
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local/generated project output
+graphify-out/
+docs/TASTE-LOG.dry.md
+docs/taste-state.dry.json

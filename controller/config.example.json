@@ -1,0 +1,18 @@
+{
+  "_comment": "Copy to controller/config.json (gitignored) — local machine config, never committed. Env vars override: DEEPHOUSE_MUSIC, DEEPHOUSE_BRIDGE_IP, DEEPHOUSE_APP_KEY.",
+
+  "_music": "serve.py streams audio from this local folder. Audio never lives in this repo. Absent = the piece runs silent.",
+  "musicFolder": "D:/Music/deephouse",
+
+  "_bridge": "listen.py reads these to reach the Hue bridge. They are NOT in listen.py on purpose — that file is committed, and a key pasted there would be in git history permanently. Same values as HueEngine.cs (BridgeIpAddress / AppKey).",
+  "bridgeIp": "192.168.0.x",
+  "appKey": "paste-your-hue-application-key-here",
+
+  "_buttons": "Run: python controller/listen.py --discover. Copy each button UUID here. These IDs identify your own remote, so keep the filled file private.",
+  "buttons": {
+    "paste-top-button-id-here": "power",
+    "paste-brightness-up-button-id-here": "up",
+    "paste-brightness-down-button-id-here": "down",
+    "paste-bottom-button-id-here": "hue"
+  }
+}

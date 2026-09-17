@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep House — The Arcade</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #04050a; color: #c8d2eb; overflow: hidden;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  #stage { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  /* top-left title / status */
+  #head { position: fixed; top: 14px; left: 18px; pointer-events: none; text-shadow: 0 1px 4px #000; }
+  #head h1 { margin: 0; font-size: 15px; font-weight: 600; color: #b8a9e0; letter-spacing: .5px; }
+  #head .status { font-size: 12px; color: #7a8299; margin-top: 2px; }
+  #caption { position: fixed; top: 46%; left: 0; right: 0; text-align: center; pointer-events: none;
+    font-size: clamp(20px, 4vw, 40px); font-weight: 600; letter-spacing: 3px; color: #f2c94c;
+    text-shadow: 0 2px 18px #000, 0 0 30px rgba(242,201,76,.4); opacity: 0; transition: opacity .6s; }
+  /* bottom 4-button rail */
+  #rail { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center;
+    gap: 10px; padding: 12px; background: linear-gradient(#0000, #04050acc 55%); }
+  .btn { min-width: 128px; text-align: center; background: #0c1020; border: 1px solid #222a44;
+    border-radius: 8px; padding: 8px 10px; cursor: pointer; user-select: none; }
+  .btn:hover { border-color: #4a5a8c; }
+  .btn .k { font-size: 11px; color: #6a7290; }
+  .btn .l { font-size: 13px; color: #dbe2f5; margin-top: 2px; }
+  .btn.dim { opacity: .35; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="cv"></canvas></div>
+<div id="head">
+  <h1>DEEP HOUSE — THE ARCADE</h1>
+  <div class="status" id="status">solve the puzzle · unlock the spiral</div>
+</div>
+<div id="caption"></div>
+<div id="rail">
+  <div class="btn" data-act="up"><div class="k">▲ / W</div><div class="l" id="lab-up">up</div></div>
+  <div class="btn" data-act="down"><div class="k">▼ / S</div><div class="l" id="lab-down">down</div></div>
+  <div class="btn" data-act="enter"><div class="k">Enter / Space</div><div class="l" id="lab-enter">select</div></div>
+  <div class="btn" data-act="back"><div class="k">Back / Esc</div><div class="l" id="lab-back">back</div></div>
+</div>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script src="games.js"></script>
+</body>
+</html>

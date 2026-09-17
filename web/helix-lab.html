@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Helix Motion Lab</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  header { padding: 14px 20px 6px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: #b8a9e0; }
+  .sub { color: #6a7290; font-size: 12px; }
+  .controls { padding: 4px 20px 12px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .controls label { color: #8a93b4; }
+  input[type=range] { vertical-align: middle; width: 150px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(300px, 1fr));
+    gap: 14px; padding: 6px 20px 28px; }
+  .tile { position: relative; background: #04050a; border: 1px solid #171a2b; border-radius: 6px; overflow: hidden; }
+  .tile canvas { display: block; width: 100%; height: 300px; }
+  .tag { position: absolute; top: 8px; left: 10px; font-size: 12px; letter-spacing: .3px;
+    color: #e6ebf7; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  .tag b { color: #f2c94c; }
+  .tag .r { color: #74b0c9; }
+  .legend { padding: 0 20px 30px; color: #6a7290; font-size: 12px; max-width: 900px; }
+  .legend code { color: #9aa4c6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Helix Motion Lab</h1>
+  <div class="sub">3 motions (A/B/C) × 3 rhythm drivers (1/2/3) = 9 variants, all spinning live.
+    Pick the coolest combo(s) and it becomes the real exhibit.</div>
+</header>
+<div class="controls">
+  <label>amplitude <input id="amp" type="range" min="0" max="2" step="0.05" value="1"></label>
+  <label>self-rhythm speed <input id="rate" type="range" min="0.02" max="0.4" step="0.01" value="0.12"></label>
+  <label><input id="pause" type="checkbox"> pause</label>
+</div>
+<div class="grid" id="grid"></div>
+<div class="legend">
+  <b>Motions</b> — <code>A</code> stretch/compress (pitch opens &amp; coils bunch; radius counter-moves so it reads elastic) ·
+  <code>B</code> rock (twist eases forward/back over the steady spin — winds &amp; unwinds) ·
+  <code>C</code> sway (whole column leans ± like a pendulum).<br>
+  <b>Rhythms</b> — <code>1</code> own timer · <code>2</code> room zoom-pendulum (a slow proxy here, off-party) ·
+  <code>3</code> σ chaos↔symmetry (breathes with the order parameter — inherently slower).
+</div>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SYM = window.SYM;
+  // A rich 5-role palette (primary, secondary, bridge, accent, breath) — hex without '#',
+  // the shape SYM.orderColor's party branch expects.
+  var PALETTE = ["8E7CC3", "4A8B8C", "C77DBB", "F2C94C", "5B6CE8"];
+
+  var MOTIONS = [
+    { key: "A", motion: "stretch", label: "stretch" },
+    { key: "B", motion: "rock",    label: "rock" },
+    { key: "C", motion: "sway",    label: "sway" },
+  ];
+  var RHYTHMS = [
+    { key: "1", rhythm: "self",  label: "self" },
+    { key: "2", rhythm: "room",  label: "room" },
+    { key: "3", rhythm: "sigma", label: "σ" },
+  ];
+
+  var ampEl = document.getElementById("amp");
+  var rateEl = document.getElementById("rate");
+  var pauseEl = document.getElementById("pause");
+  var grid = document.getElementById("grid");
+  var tiles = [];
+
+  MOTIONS.forEach(function (m) {
+    RHYTHMS.forEach(function (r) {
+      var wrap = document.createElement("div"); wrap.className = "tile";
+      var cv = document.createElement("canvas");
+      var tag = document.createElement("div"); tag.className = "tag";
+      tag.innerHTML = "<b>" + m.key + r.key + "</b> " + m.label + " · <span class='r'>" + r.label + "</span>";
+      wrap.appendChild(cv); wrap.appendChild(tag); grid.appendChild(wrap);
+      var ex = SYM.buildHelix({ motion: m.motion, rhythm: r.rhythm, amp: 1, rate: 0.12,
+        title: m.key + r.key });
+      tiles.push({ cv: cv, ctx: cv.getContext("2d"), ex: ex, rhythm: r.rhythm, m: m, r: r });
+    });
+  });
+
+  function fit(t) {
+    var w = t.cv.clientWidth, h = t.cv.clientHeight;
+    if (t.cv.width !== w || t.cv.height !== h) { t.cv.width = w; t.cv.height = h; }
+  }
+  tiles.forEach(fit);
+  window.addEventListener("resize", function () { tiles.forEach(fit); });
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!pauseEl.checked) {
+      var amp = parseFloat(ampEl.value), rate = parseFloat(rateEl.value);
+      // sweep σ slowly so the σ-driven tiles actually breathe; harmless to the others.
+      var tune = Math.sin(now / 1000 * 0.2);
+      tiles.forEach(function (t) {
+        // buildHelix captures amp/rate at build; to make the sliders live, rebuild the
+        // instance lazily on change and carry its clock forward so the motion doesn't jump.
+        if (t._amp !== amp || t._rate !== rate) {
+          t.ex = SYM.buildHelix({ motion: t.m.motion, rhythm: t.r.rhythm, amp: amp, rate: rate, title: t.m.key + t.r.key });
+          t.ex._t = t._t || 0; t._amp = amp; t._rate = rate;
+        }
+        t.ex.update(dt, tune);
+        t._t = t.ex._t;
+        var color = SYM.orderColor(t.ex.sigma(), PALETTE);
+        t.ex.draw(t.ctx, t.cv.width, t.cv.height, dt, { alpha: 0.9, fade: 0.22, color: color, tint: null });
+      });
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Deep House Organisms</title>
+<style>
+  :root { color-scheme: dark; --bg:#04050a; --panel:#080a14; --ink:#c8d2eb; --dim:#6a7290;
+    --gold:#f2c94c; --line:#171a2b; --acc:#b8a9e0; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:13px/1.45 "Cascadia Code", ui-monospace, Consolas, monospace;
+    -webkit-text-size-adjust:100%; overflow:hidden; }
+  #app { display:grid; height:100dvh; grid-template-columns: 1fr 320px; }
+  #stage { display:block; width:100%; height:100%; background:#04050a; touch-action:none; }
+  #panel { background:var(--panel); border-left:1px solid var(--line); padding:14px 14px 20px;
+    overflow-y:auto; display:flex; flex-direction:column; gap:16px; }
+  h1 { margin:0; font-size:15px; font-weight:600; color:var(--acc); letter-spacing:.02em; }
+  .sub { margin:2px 0 0; color:var(--dim); font-size:11px; }
+  .sec { display:flex; flex-direction:column; gap:8px; }
+  .lbl { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  input[type=range] { width:100%; height:34px; accent-color:var(--gold); }
+  select, button { background:#0c1020; color:var(--ink); border:1px solid #222a44;
+    border-radius:8px; padding:8px 10px; font:inherit; min-height:38px; cursor:pointer; }
+  button:hover { border-color:#3a466e; }
+  button.p { flex:1 1 0; min-width:0; font-size:11px; padding:8px 4px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row { max-width:100%; }
+  #panel > .sec { max-width:100%; }
+  .val { color:var(--gold); font-variant-numeric:tabular-nums; }
+  #tri { width:100%; height:190px; touch-action:none; display:block;
+    background:#060810; border:1px solid var(--line); border-radius:10px; }
+  .wts { display:flex; justify-content:space-between; font-size:11px; color:var(--dim); }
+  .wts b { color:var(--ink); font-weight:600; }
+  .foot { color:var(--dim); font-size:10px; line-height:1.5; }
+  /* phone: stage on top, controls below */
+  @media (max-width: 720px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 56vh auto; }
+    #panel { border-left:none; border-top:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="stage"></canvas>
+  <aside id="panel">
+    <div class="sec">
+      <h1>Deep House — Organisms</h1>
+      <p class="sub">One skeleton, three bodies. Drag the puck to mix synaptic ↔ slime mold ↔ superfluid. σ pulls the whole thing from chaos to symmetry.</p>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">mix — drag the puck</div>
+      <canvas id="tri"></canvas>
+      <div class="wts">
+        <span>synaptic <b id="wA">100%</b></span>
+        <span>slime <b id="wB">0%</b></span>
+        <span>fluid <b id="wC">0%</b></span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">σ — chaos → symmetry <span class="val" id="sgv">0.80</span></div>
+      <input id="sg" type="range" min="0" max="1" step="0.01" value="0.80">
+      <label class="row" style="color:var(--dim)"><input id="auto" type="checkbox"> let σ breathe</label>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">speed <span class="val" id="spv">1.0</span></div>
+      <input id="sp" type="range" min="0.2" max="2.4" step="0.05" value="1">
+    </div>
+
+    <div class="sec">
+      <div class="lbl">presets</div>
+      <div class="row">
+        <button class="p" data-w="1,0,0" data-s="0.85">Synapse</button>
+        <button class="p" data-w="0,1,0" data-s="0.80">Slime</button>
+        <button class="p" data-w="0,0,1" data-s="0.80">Superfluid</button>
+      </div>
+      <div class="row">
+        <button class="p" data-w="0.5,0,0.5" data-s="0.82">Neural tide</button>
+        <button class="p" data-w="0.3,0.5,0.2" data-s="0.92">Living map</button>
+        <button class="p" data-w="0.34,0.33,0.33" data-s="0.20">Primordial</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="lbl">colour</div>
+      <select id="pal"></select>
+    </div>
+
+    <div class="sec">
+      <div class="row">
+        <button id="regen" style="flex:1">↻ new organism</button>
+      </div>
+      <p class="foot" id="foot">A node-graph skeleton. Synaptic = neurons firing along the web. Slime = Physarum agents growing veins onto the nodes. Superfluid = light flooding the channels. All three draw the same skeleton, so a mix overlays them.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="palettes.js"></script>
+<script>
+(function () {
+  "use strict";
+  var TAU = Math.PI * 2;
+  function clamp(x,a,b){ return x<a?a:x>b?b:x; }
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function smooth(t){ return t*t*(3-2*t); }
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function hexRgb(h){ h=(h||"8E7CC3").replace("#",""); var n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+  function rgba(c,a){ return "rgba("+(c[0]|0)+","+(c[1]|0)+","+(c[2]|0)+","+a+")"; }
+
+  // ── palette ramp (from palettes.js atlas, else a punchy fallback) ──────────
+  var PAL_LIST = [];
+  try { if (window.PALETTES && PALETTES.all) PALETTES.all().forEach(function(s){
+    if (s && s.colors && s.colors.length>=3) PAL_LIST.push({ name:s.id||"scheme", cols:s.colors.slice(0,5).map(hexRgb) }); }); } catch(e){}
+  if (!PAL_LIST.length) PAL_LIST=[{name:"Deep House", cols:["5B6CE8","C77DBB","4A8B8C","F2C94C","8E7CC3"].map(hexRgb)}];
+  var palIdx = 0;
+  function ramp(t){ // t 0..1 across the scheme
+    var cols = PAL_LIST[palIdx].cols, n = cols.length;
+    t = clamp(t,0,1)*(n-1); var i=Math.floor(t), f=smooth(t-i), a=cols[i], b=cols[Math.min(n-1,i+1)];
+    return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+  }
+
+  // ── the shared skeleton: nodes + edges, wobbling at chaos, locked at order ─
+  var SUB = {
+    build: function (seed) {
+      var rnd = mulberry32(seed), N = 108, pts = [], tries = 0, minD = 0.135;
+      while (pts.length < N && tries < 9000) { tries++;
+        var a = rnd()*TAU, r = Math.sqrt(rnd())*0.9, p=[Math.cos(a)*r, Math.sin(a)*r], ok=true;
+        for (var i=0;i<pts.length;i++){ var dx=pts[i][0]-p[0], dy=pts[i][1]-p[1]; if (dx*dx+dy*dy < minD*minD){ ok=false; break; } }
+        if (ok) pts.push(p);
+      }
+      N = pts.length;
+      // edges: k nearest neighbours (k=3), deduped + symmetric
+      var edges = [], seen = {}, adj = []; for (i=0;i<N;i++) adj.push([]);
+      for (i=0;i<N;i++){
+        var d=[]; for (var j=0;j<N;j++){ if(j===i)continue; var ex=pts[i][0]-pts[j][0], ey=pts[i][1]-pts[j][1]; d.push([ex*ex+ey*ey, j]); }
+        d.sort(function(u,v){return u[0]-v[0];});
+        for (var k=0;k<3 && k<d.length;k++){ var jj=d[k][1], key=Math.min(i,jj)+"_"+Math.max(i,jj);
+          if (seen[key]) continue; seen[key]=1; edges.push([i,jj]); adj[i].push(jj); adj[jj].push(i); }
+      }
+      // per-node chaos wobble
+      var wob = []; for (i=0;i<N;i++) wob.push([rnd()*TAU, 0.05+rnd()*0.09, rnd()*TAU]);
+      this.N=N; this.base=pts; this.edges=edges; this.adj=adj; this.wob=wob;
+      this.deg = pts.map(function(_,ii){ return adj[ii].length; });
+      this.seed = seed;
+    },
+    // node position in normalized [-1,1] space, given σ + time (chaos wobbles, order stills)
+    pos: function (i, sigma, t) {
+      var b=this.base[i], w=this.wob[i], amp=(1-sigma)*w[1];
+      return [ b[0] + Math.cos(w[0]+t*0.7)*amp, b[1] + Math.sin(w[2]+t*0.6)*amp ];
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  RENDERER A — SYNAPTIC : neurons firing along the web (like the constellation)
+  // ═══════════════════════════════════════════════════════════════════════════
+  var Syn = {
+    reset: function(){ this.sig=[]; this.refr=new Float32Array(SUB.N); this.fire=new Float32Array(SUB.N); this._pace=0; },
+    step: function(dt, S){
+      var N=SUB.N, sigma=S.sigma;
+      for (var i=0;i<N;i++){ if(this.refr[i]>0) this.refr[i]-=dt; if(this.fire[i]>0) this.fire[i]=Math.max(0,this.fire[i]-dt*2.2); }
+      // spontaneous ignition: chaos = scattered random, order = a pacemaker beating in rhythm
+      this._pace += dt*(0.5+sigma*0.9);
+      var wantOrder = sigma>0.5 && (this._pace%1) < dt*(0.5+sigma*0.9)*1.02;
+      if (wantOrder){ this._ignite((SUB.seed>>3)%N, S); }
+      if (S.rnd() < (0.9*(1-sigma)+0.05)*dt*12){ this._ignite((Math.random()*N)|0, S); }
+      // advance signals
+      var out=[];
+      for (i=0;i<this.sig.length;i++){ var s=this.sig[i]; s.u += dt*s.v;
+        if (s.u>=1){ this._arrive(s.to, s.from, S); } else out.push(s); }
+      this.sig = out.length>600 ? out.slice(out.length-600) : out;
+    },
+    _ignite: function(i,S){ if(this.refr[i]>0) return; this._arrive(i,-1,S); },
+    _arrive: function(i, from, S){
+      if (this.refr[i]>0) return;
+      this.fire[i]=0.5; this.refr[i]=0.32+(1-S.sigma)*0.4;
+      var nb=SUB.adj[i], prob=0.55+S.sigma*0.4;
+      for (var k=0;k<nb.length;k++){ var j=nb[k]; if(j===from) continue; if (S.rnd()<prob && this.sig.length<600)
+        this.sig.push({from:i,to:j,u:0,v:(1.1+S.sigma*1.6)}); }
+    },
+    draw: function(ctx, M, S, alpha){
+      var N=SUB.N, sigma=S.sigma, t=S.t;
+      // edges (dendrites)
+      ctx.lineWidth = M.R*0.003;
+      for (var e=0;e<SUB.edges.length;e++){ var a=SUB.edges[e][0], b=SUB.edges[e][1];
+        var pa=M.px(SUB.pos(a,sigma,t)), pb=M.px(SUB.pos(b,sigma,t));
+        var col=ramp(0.25+0.4*Math.sin(e*0.3+t*0.2));
+        ctx.strokeStyle=rgba(col,(0.05+0.10*sigma)*alpha);
+        ctx.beginPath(); ctx.moveTo(pa[0],pa[1]); ctx.lineTo(pb[0],pb[1]); ctx.stroke();
+      }
+      // travelling signals
+      for (var s=0;s<this.sig.length;s++){ var sg=this.sig[s];
+        var pa2=SUB.pos(sg.from,sigma,t), pb2=SUB.pos(sg.to,sigma,t);
+        var x=lerp(pa2[0],pb2[0],sg.u), y=lerp(pa2[1],pb2[1],sg.u), p=M.px([x,y]);
+        var col2=ramp(0.7+0.3*Math.sin(sg.from));
+        ctx.fillStyle=rgba(col2,0.85*alpha);
+        ctx.beginPath(); ctx.arc(p[0],p[1], M.R*0.006, 0, TAU); ctx.fill();
+      }
+      // somata
+      for (var i=0;i<N;i++){ var p2=M.px(SUB.pos(i,sigma,t)), deg=SUB.deg[i];
+        var rr=M.R*(0.006+0.012*Math.pow(Math.min(deg,6)/6,0.6))*(1+this.fire[i]*1.6);
+        var col3=ramp(0.15+0.7*(deg/6));
+        var g=ctx.createRadialGradient(p2[0],p2[1],0,p2[0],p2[1],rr*3);
+        g.addColorStop(0, rgba(col3,(0.5+0.5*this.fire[i])*alpha)); g.addColorStop(1, rgba(col3,0));
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p2[0],p2[1],rr*3,0,TAU); ctx.fill();
+      }
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  RENDERER B — SLIME MOLD : Physarum agents grow veins onto the node food
+  // ═══════════════════════════════════════════════════════════════════════════
+  var Slime = {
+    ok:false,
+    reset: function(){
+      var doc; try{ doc=document; }catch(e){ this.ok=false; return; }
+      this.gw=200; this.gh=140; var GW=this.gw, GH=this.gh, L=GW*GH;
+      this.trail=new Float32Array(L); this.tmp=new Float32Array(L);
+      this.food=new Float32Array(L);
+      // food = soft bumps at every node's base position (stable → veins connect them)
+      for (var i=0;i<SUB.N;i++){ var b=SUB.base[i];
+        var fx=(b[0]*0.9*0.5+0.5)*GW, fy=(b[1]*0.9*0.5+0.5)*GH;
+        for (var dy=-4;dy<=4;dy++) for (var dx=-4;dx<=4;dx++){ var x=(fx+dx)|0,y=(fy+dy)|0;
+          if(x<0||y<0||x>=GW||y>=GH) continue; var d2=dx*dx+dy*dy; this.food[y*GW+x]+=Math.exp(-d2/8); } }
+      // agents seeded near random nodes
+      var A=2200; this.ag=new Float32Array(A*3); var rnd=mulberry32(SUB.seed^0x9e37);
+      for (i=0;i<A;i++){ var nb=SUB.base[(rnd()*SUB.N)|0];
+        this.ag[i*3]=(nb[0]*0.9*0.5+0.5)*GW + (rnd()-0.5)*10;
+        this.ag[i*3+1]=(nb[1]*0.9*0.5+0.5)*GH + (rnd()-0.5)*10;
+        this.ag[i*3+2]=rnd()*TAU; }
+      this.buf=null; this.ok=true;
+    },
+    _sense: function(x,y,a){ var GW=this.gw,GH=this.gh; var ix=((x+GW)%GW)|0, iy=((y+GH)%GH)|0;
+      return this.trail[iy*GW+ix] + this.food[iy*GW+ix]*this._fw; },
+    step: function(dt, S){
+      if(!this.ok) return; var GW=this.gw, GH=this.gh, ag=this.ag, A=ag.length/3, sigma=S.sigma;
+      var SD=3.2, SA=0.5-sigma*0.18, turn=0.5+sigma*0.9, rndturn=(1-sigma)*0.9, step=0.9+sigma*0.5;
+      this._fw = 0.6+sigma*1.4;                       // order → follow the food harder
+      for (var i=0;i<A;i++){ var x=ag[i*3], y=ag[i*3+1], h=ag[i*3+2];
+        var fl=this._sense(x+Math.cos(h-SA)*SD, y+Math.sin(h-SA)*SD, h);
+        var fc=this._sense(x+Math.cos(h)*SD,    y+Math.sin(h)*SD, h);
+        var fr=this._sense(x+Math.cos(h+SA)*SD, y+Math.sin(h+SA)*SD, h);
+        if (fc>=fl && fc>=fr){} else if (fl>fr) h-=turn*dt*6; else if (fr>fl) h+=turn*dt*6; else h+=(S.rnd()-0.5)*turn;
+        h += (S.rnd()-0.5)*rndturn;
+        x+=Math.cos(h)*step; y+=Math.sin(h)*step;
+        if(x<0)x+=GW; else if(x>=GW)x-=GW; if(y<0)y+=GH; else if(y>=GH)y-=GH;
+        ag[i*3]=x; ag[i*3+1]=y; ag[i*3+2]=h;
+        this.trail[(y|0)*GW+(x|0)] += 1.0;
+      }
+      // diffuse (cheap 3x3 box) + decay
+      var tr=this.trail, tm=this.tmp, decay=0.90+sigma*0.055;
+      for (var yy=0;yy<GH;yy++){ var y0=((yy-1+GH)%GH)*GW, y1=yy*GW, y2=((yy+1)%GH)*GW;
+        for (var xx=0;xx<GW;xx++){ var xm=(xx-1+GW)%GW, xp=(xx+1)%GW;
+          var s=tr[y0+xm]+tr[y0+xx]+tr[y0+xp]+tr[y1+xm]+tr[y1+xx]+tr[y1+xp]+tr[y2+xm]+tr[y2+xx]+tr[y2+xp];
+          tm[y1+xx]=(s/9)*decay; } }
+      this.trail=tm; this.tmp=tr;
+    },
+    draw: function(ctx, M, S, alpha){
+      if(!this.ok) return; var GW=this.gw, GH=this.gh, tr=this.trail;
+      var doc; try{doc=document;}catch(e){return;}
+      if(!this.buf){ this.buf=doc.createElement("canvas"); this.buf.width=GW; this.buf.height=GH; this.bx=this.buf.getContext("2d");
+        this.img=this.bx.createImageData(GW,GH); }
+      var d=this.img.data, lo=ramp(0.1), hi=ramp(0.9);
+      for (var i=0;i<GW*GH;i++){ var v=tr[i]; if(v>3)v=3; var t=v/3, tt=smooth(t);
+        var o=i*4; d[o]=lo[0]+(hi[0]-lo[0])*tt; d[o+1]=lo[1]+(hi[1]-lo[1])*tt; d[o+2]=lo[2]+(hi[2]-lo[2])*tt; d[o+3]=(tt*255*alpha)|0; }
+      this.bx.putImageData(this.img,0,0);
+      var prev=ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled=true; ctx.globalAlpha=1;
+      ctx.drawImage(this.buf, M.x0, M.y0, M.w0, M.h0); ctx.imageSmoothingEnabled=prev;
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  RENDERER C — SUPERFLUID : light flooding the channels + node blooms
+  // ═══════════════════════════════════════════════════════════════════════════
+  var Fluid = {
+    reset: function(){ var P=520; this.p=[]; var rnd=mulberry32(SUB.seed^0x51ed);
+      for (var i=0;i<P;i++){ var e=(rnd()*SUB.edges.length)|0; this.p.push({e:e,u:rnd(),v:0.4+rnd()*0.8,off:(rnd()-0.5),ph:rnd()*TAU}); } },
+    step: function(dt, S){ var sigma=S.sigma;
+      for (var i=0;i<this.p.length;i++){ var pt=this.p[i]; pt.u += dt*pt.v*(0.5+sigma*0.8);
+        if (pt.u>=1){ pt.u-=1; var cur=SUB.edges[pt.e][1]; var nb=SUB.adj[cur];
+          pt.e = this._edgeTo(cur, nb.length? nb[(S.rnd()*nb.length)|0] : SUB.edges[pt.e][0]); pt.off=(S.rnd()-0.5); } }
+    },
+    _edgeTo: function(from,to){ for (var e=0;e<SUB.edges.length;e++){ var a=SUB.edges[e][0],b=SUB.edges[e][1];
+      if(a===from&&b===to) return e; if(a===to&&b===from) return e; } return (Math.random()*SUB.edges.length)|0; },
+    draw: function(ctx, M, S, alpha){
+      var sigma=S.sigma, t=S.t;
+      // node blooms — the superfluid wells, breathing with the pulse
+      for (var i=0;i<SUB.N;i++){ var p=M.px(SUB.pos(i,sigma,t)), deg=SUB.deg[i];
+        var br=M.R*(0.03+0.05*(deg/6))*(0.8+0.3*Math.sin(t*1.3+i)), col=ramp(0.4+0.4*(deg/6));
+        var g=ctx.createRadialGradient(p[0],p[1],0,p[0],p[1],br);
+        g.addColorStop(0, rgba(col,(0.10+0.14*sigma)*alpha)); g.addColorStop(1, rgba(col,0));
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p[0],p[1],br,0,TAU); ctx.fill();
+      }
+      // flowing particles hugging the channels (turbulent at chaos)
+      for (var s=0;s<this.p.length;s++){ var pt=this.p[s], ed=SUB.edges[pt.e];
+        var pa=SUB.pos(ed[0],sigma,t), pb=SUB.pos(ed[1],sigma,t);
+        var dx=pb[0]-pa[0], dy=pb[1]-pa[1], len=Math.hypot(dx,dy)||1, nx=-dy/len, ny=dx/len;
+        var wob=pt.off*(1-sigma)*0.12*Math.sin(t*3+pt.ph);
+        var x=lerp(pa[0],pb[0],pt.u)+nx*wob, y=lerp(pa[1],pb[1],pt.u)+ny*wob, p2=M.px([x,y]);
+        var col2=ramp(0.55+0.4*pt.u);
+        ctx.fillStyle=rgba(col2,(0.5+0.4*sigma)*alpha);
+        ctx.beginPath(); ctx.arc(p2[0],p2[1], M.R*0.0055, 0, TAU); ctx.fill();
+      }
+    }
+  };
+
+  // ── weights (barycentric puck) + shared state ──────────────────────────────
+  var W=[1,0,0];                                   // synaptic, slime, fluid
+  var S={ sigma:0.80, t:0, speed:1, _seed:12345, rnd:function(){ this._seed=(this._seed*1664525+1013904223)>>>0; return this._seed/4294967296; } };
+
+  function rebuild(seed){ SUB.build(seed); Syn.reset(); Slime.reset(); Fluid.reset(); }
+  rebuild(( (Math.random()*1e9)|0 ) || 7);
+
+  // ── canvas + mapping ───────────────────────────────────────────────────────
+  var stage=document.getElementById("stage"), ctx=stage.getContext("2d");
+  var DPR=Math.min(2, window.devicePixelRatio||1);
+  function M(){ var w=stage.width, h=stage.height, R=Math.min(w,h)*0.46, cx=w/2, cy=h/2;
+    return { w:w,h:h,R:R,cx:cx,cy:cy, x0:cx-R,y0:cy-R,w0:R*2,h0:R*2,
+      px:function(n){ return [cx+n[0]*R, cy+n[1]*R]; } }; }
+  function fit(){ var w=Math.max(2,(stage.clientWidth*DPR)|0), h=Math.max(2,(stage.clientHeight*DPR)|0);
+    if(stage.width!==w||stage.height!==h){ stage.width=w; stage.height=h; } }
+
+  // ── the loop ───────────────────────────────────────────────────────────────
+  var last=0;
+  function frame(now){ var dt=Math.min(0.05,(now-last)/1000||0.016)*S.speed; last=now; fit();
+    if (autoEl.checked){ S.sigma = 0.5-0.5*Math.cos(now/1000*0.16); sgEl.value=S.sigma.toFixed(2); sgv.textContent=S.sigma.toFixed(2); }
+    S.t += dt;
+    // step only what is (nearly) visible
+    if (W[0]>0.02) Syn.step(dt,S);
+    if (W[1]>0.02) Slime.step(dt,S);
+    if (W[2]>0.02) Fluid.step(dt,S);
+    var m=M();
+    // trail-fade background (the constellation wake)
+    ctx.globalCompositeOperation="source-over"; ctx.fillStyle="rgba(4,5,10,0.24)"; ctx.fillRect(0,0,m.w,m.h);
+    // slime is a filled field → draw first (source-over), then additive glow on top
+    if (W[1]>0.02){ ctx.globalCompositeOperation="lighter"; Slime.draw(ctx,m,S,W[1]); }
+    ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=1;
+    if (W[2]>0.02) Fluid.draw(ctx,m,S,W[2]);
+    if (W[0]>0.02) Syn.draw(ctx,m,S,W[0]);
+    ctx.globalCompositeOperation="source-over"; ctx.globalAlpha=1;
+    requestAnimationFrame(frame);
+  }
+
+  // ── triangle blend control ─────────────────────────────────────────────────
+  var tri=document.getElementById("tri"), tx=tri.getContext("2d");
+  var TVerts, puck=[0,0];                          // puck in tri-canvas px
+  function triFit(){ var w=Math.max(2,(tri.clientWidth*DPR)|0), h=Math.max(2,(190*DPR)|0);
+    tri.width=w; tri.height=h; var pad=26*DPR;
+    TVerts=[ [w/2, pad], [pad, h-pad], [w-pad, h-pad] ];   // A=syn(top), B=slime(bl), C=fluid(br)
+    setWeights(W, false); }
+  function bary(p){ var A=TVerts[0],B=TVerts[1],C=TVerts[2];
+    var v0=[B[0]-A[0],B[1]-A[1]], v1=[C[0]-A[0],C[1]-A[1]], v2=[p[0]-A[0],p[1]-A[1]];
+    var d00=v0[0]*v0[0]+v0[1]*v0[1], d01=v0[0]*v1[0]+v0[1]*v1[1], d11=v1[0]*v1[0]+v1[1]*v1[1];
+    var d20=v2[0]*v0[0]+v2[1]*v0[1], d21=v2[0]*v1[0]+v2[1]*v1[1], den=d00*d11-d01*d01||1;
+    var vv=(d11*d20-d01*d21)/den, ww=(d00*d21-d01*d20)/den, uu=1-vv-ww;
+    uu=Math.max(0,uu); vv=Math.max(0,vv); ww=Math.max(0,ww); var sm=uu+vv+ww||1; return [uu/sm,vv/sm,ww/sm]; }
+  function fromW(w){ var A=TVerts[0],B=TVerts[1],C=TVerts[2];
+    return [A[0]*w[0]+B[0]*w[1]+C[0]*w[2], A[1]*w[0]+B[1]*w[1]+C[1]*w[2]]; }
+  function setWeights(w, fromPuck){ W=w; puck=fromW(w);
+    wA.textContent=Math.round(w[0]*100)+"%"; wB.textContent=Math.round(w[1]*100)+"%"; wC.textContent=Math.round(w[2]*100)+"%"; drawTri(); }
+  function drawTri(){ var w=tri.width,h=tri.height; tx.clearRect(0,0,w,h);
+    var A=TVerts[0],B=TVerts[1],C=TVerts[2];
+    tx.lineWidth=1.5*DPR; tx.strokeStyle="#2a3358"; tx.beginPath();
+    tx.moveTo(A[0],A[1]); tx.lineTo(B[0],B[1]); tx.lineTo(C[0],C[1]); tx.closePath(); tx.stroke();
+    var labs=[["synaptic",A,"#8ab6ff"],["slime",B,"#e2c15a"],["fluid",C,"#7fe6d0"]];
+    tx.font=(11*DPR)+"px Cascadia Code, monospace"; tx.textAlign="center";
+    for (var i=0;i<3;i++){ tx.fillStyle=labs[i][2]; var v=labs[i][1];
+      tx.fillText(labs[i][0], v[0], v[1]+(i===0?-8*DPR:16*DPR)); }
+    // puck
+    tx.fillStyle="#f2c94c"; tx.strokeStyle="#04050a"; tx.lineWidth=2*DPR;
+    tx.beginPath(); tx.arc(puck[0],puck[1],7*DPR,0,TAU); tx.fill(); tx.stroke();
+  }
+  function triPoint(ev){ var r=tri.getBoundingClientRect(), cx=(ev.touches?ev.touches[0].clientX:ev.clientX), cy=(ev.touches?ev.touches[0].clientY:ev.clientY);
+    return [ (cx-r.left)*DPR, (cy-r.top)*DPR ]; }
+  var dragging=false;
+  function triSet(ev){ setWeights(bary(triPoint(ev)), true); }
+  tri.addEventListener("pointerdown", function(ev){ dragging=true; tri.setPointerCapture(ev.pointerId); triSet(ev); });
+  tri.addEventListener("pointermove", function(ev){ if(dragging) triSet(ev); });
+  tri.addEventListener("pointerup", function(){ dragging=false; });
+
+  // ── controls ───────────────────────────────────────────────────────────────
+  var sgEl=document.getElementById("sg"), sgv=document.getElementById("sgv"),
+      spEl=document.getElementById("sp"), spv=document.getElementById("spv"),
+      autoEl=document.getElementById("auto"), palEl=document.getElementById("pal"),
+      wA=document.getElementById("wA"), wB=document.getElementById("wB"), wC=document.getElementById("wC");
+  PAL_LIST.forEach(function(p,i){ var o=document.createElement("option"); o.value=i; o.textContent=p.name; palEl.appendChild(o); });
+  sgEl.addEventListener("input", function(){ S.sigma=+sgEl.value; sgv.textContent=S.sigma.toFixed(2); if(autoEl.checked)autoEl.checked=false; });
+  spEl.addEventListener("input", function(){ S.speed=+spEl.value; spv.textContent=S.speed.toFixed(1); });
+  palEl.addEventListener("change", function(){ palIdx=palEl.value|0; });
+  document.getElementById("regen").addEventListener("click", function(){ rebuild((Math.random()*1e9)|0); });
+  Array.prototype.forEach.call(document.querySelectorAll("button.p"), function(b){
+    b.addEventListener("click", function(){ var w=b.getAttribute("data-w").split(",").map(Number), s=+b.getAttribute("data-s");
+      setWeights(w,false); S.sigma=s; sgEl.value=s.toFixed(2); sgv.textContent=s.toFixed(2); autoEl.checked=false; }); });
+
+  window.addEventListener("resize", triFit);
+  triFit();
+
+  // optional deep-link: ?w=syn,slime,fluid&s=sigma&pal=i  (share a mix)
+  try { var q=new URLSearchParams(location.search);
+    if (q.get("w")){ var wv=q.get("w").split(",").map(Number); if(wv.length===3){ var sm=wv[0]+wv[1]+wv[2]||1; setWeights([wv[0]/sm,wv[1]/sm,wv[2]/sm],false); } }
+    if (q.get("s")!=null){ S.sigma=clamp(+q.get("s"),0,1); sgEl.value=S.sigma.toFixed(2); sgv.textContent=S.sigma.toFixed(2); }
+    if (q.get("pal")!=null){ palIdx=(+q.get("pal"))%PAL_LIST.length; palEl.value=palIdx; }
+  } catch(e){}
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

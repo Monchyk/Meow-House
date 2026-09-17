@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Helix Reconstruction Lab</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  header { padding: 14px 20px 6px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: #b8a9e0; }
+  .sub { color: #6a7290; font-size: 12px; }
+  .controls { padding: 8px 20px 12px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  .controls label { color: #8a93b4; }
+  #sigma { width: 340px; vertical-align: middle; }
+  #sigval { color: #f2c94c; }
+  input[type=range] { vertical-align: middle; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; padding: 6px 20px 22px; }
+  .tile { position: relative; background: #04050a; border: 1px solid #171a2b; border-radius: 6px; overflow: hidden; }
+  .tile canvas { display: block; width: 100%; height: 66vh; }
+  .tag { position: absolute; top: 8px; left: 10px; font-size: 13px; color: #e6ebf7; text-shadow: 0 1px 3px #000; pointer-events: none; }
+  .tag b { color: #f2c94c; }
+  .desc { position: absolute; bottom: 8px; left: 10px; right: 10px; font-size: 11px; color: #7a8299; text-shadow: 0 1px 3px #000; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Helix Reconstruction Lab</h1>
+  <div class="sub">Drag σ left → the helix opens to thin near-straight lines; right → the lines wind
+    together and rebuild into the helix, then open again. Auto-sweep to watch the whole cycle.</div>
+</header>
+<div class="controls">
+  <label>σ (chaos ↔ order) <input id="sigma" type="range" min="0" max="1" step="0.005" value="0.5"> <span id="sigval">0.50</span></label>
+  <label><input id="sweep" type="checkbox" checked> auto-sweep</label>
+  <label>chaos separation <input id="thin" type="range" min="0.2" max="1.2" step="0.05" value="0.85" style="width:130px"> <span id="thinval">0.85</span></label>
+  <label>merge curve <input id="str" type="range" min="1" max="3" step="0.1" value="1.5" style="width:130px"> <span id="strval">1.5</span></label>
+</div>
+<div class="grid" id="grid"></div>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SYM = window.SYM;
+  var PALETTE = ["8E7CC3", "4A8B8C", "C77DBB", "F2C94C", "5B6CE8"];
+  // [key, deconstruct-config, label, desc]
+  var TILES = [
+    { deconstruct: "reconstruct", label: "unwinding front", desc: "a break opens at the dead centre and courses out to the ends as σ falls, zipping back in as it rises" },
+    { deconstruct: null,          label: "clean helix (target)", desc: "the σ=1 shape it re-attracts toward, shown steady for reference" },
+  ];
+  var sigmaEl = document.getElementById("sigma"), sigval = document.getElementById("sigval");
+  var sweepEl = document.getElementById("sweep");
+  var thinEl = document.getElementById("thin"), thinval = document.getElementById("thinval");
+  var strEl = document.getElementById("str"), strval = document.getElementById("strval");
+  var grid = document.getElementById("grid"), tiles = [];
+
+  TILES.forEach(function (spec) {
+    var wrap = document.createElement("div"); wrap.className = "tile";
+    var cv = document.createElement("canvas");
+    var tag = document.createElement("div"); tag.className = "tag"; tag.innerHTML = "<b>" + spec.label + "</b>";
+    var desc = document.createElement("div"); desc.className = "desc"; desc.textContent = spec.desc;
+    wrap.appendChild(cv); wrap.appendChild(tag); wrap.appendChild(desc); grid.appendChild(wrap);
+    tiles.push({ cv: cv, ctx: cv.getContext("2d"), spec: spec, ex: null, thin: null, str: null, ref: spec.deconstruct === null });
+  });
+
+  function build(t, thin, str) {
+    var _t = t.ex ? t.ex._t : 0;
+    t.ex = SYM.buildHelix({ deconstruct: t.spec.deconstruct, motion: null, rhythm: "sigma",
+      spread: thin, mergeEase: str, title: t.spec.label });
+    t.ex._t = _t; t.thin = thin; t.str = str;
+  }
+  function fit(t) { var w = t.cv.clientWidth, h = t.cv.clientHeight; if (t.cv.width !== w || t.cv.height !== h) { t.cv.width = w; t.cv.height = h; } }
+  tiles.forEach(fit);
+  window.addEventListener("resize", function () { tiles.forEach(fit); });
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var thin = parseFloat(thinEl.value), str = parseFloat(strEl.value);
+    thinval.textContent = thin.toFixed(2); strval.textContent = str.toFixed(2);
+    var sigma;
+    if (sweepEl.checked) { sigma = 0.5 - 0.5 * Math.cos(now / 1000 * 0.3); sigmaEl.value = sigma; }
+    else sigma = parseFloat(sigmaEl.value);
+    sigval.textContent = sigma.toFixed(2);
+    tiles.forEach(function (t) {
+      if (t.thin !== thin || t.str !== str || !t.ex) build(t, thin, str);
+      var sg = t.ref ? 1 : sigma;                     // reference tile stays at the clean target
+      t.ex.update(dt, sg * 2 - 1);
+      t.ex.q = sg;
+      var color = SYM.orderColor(sg, PALETTE);
+      t.ex.draw(t.ctx, t.cv.width, t.cv.height, dt, { alpha: 0.9, fade: 0.22, color: color, tint: null });
+    });
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

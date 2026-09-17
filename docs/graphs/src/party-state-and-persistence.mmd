@@ -1,0 +1,15 @@
+flowchart TB
+    Cmd[Dashboard / remote / keyboard intent] --> Apply[PARTY.apply or direct input]
+    Apply --> Live[(Authoritative live state<br/>beamer browser memory)]
+    Live --> Tick[tick: decay, tempo, pendulum,<br/>attract, neglect, fades]
+    Tick --> Live
+    Live --> Snap[snapshot: serializable dashboard view]
+    Snap --> Dash[Dashboard mirror]
+    Live --> Save[_save on durable curation changes]
+    Save --> LS[(localStorage<br/>on beamer machine)]
+    LS --> Load[_load on page boot]
+    Load --> Live
+
+    LS --- Keep[Survives reload:<br/>playlists and cursors<br/>unlocks and generated lights<br/>garden contributions<br/>exhibit vetoes / overlap vetoes<br/>saved user presets]
+    Live --- Volatile[Runtime-only:<br/>current business and drive<br/>active selection<br/>attract clock and idle clock<br/>animation/fade phases<br/>most live desk/config values]
+

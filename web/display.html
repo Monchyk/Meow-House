@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep House — display</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="display-view">
+  <canvas id="viz"></canvas>
+
+  <div id="ui">
+    <header>
+      <div id="room-tag"></div>
+    </header>
+    <main>
+      <div id="feeling-word"></div>
+    </main>
+    <footer>
+      <div id="guide"></div>
+    </footer>
+  </div>
+
+  <div id="waiting">
+    <div>
+      <div class="waiting-title">DEEP HOUSE</div>
+      <div class="waiting-sub">waiting for the master window…<br>open <code>house.html</code> on the laptop screen</div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="viz/field.js"></script>
+  <script src="viz/decks.js"></script>
+  <script src="viz/symmetry.js"></script>
+  <script src="field/config.js"></script>
+  <script src="field/graph.js"></script>
+  <script src="field/layout.js"></script>
+  <script src="field/phases.js"></script>
+  <script src="field/nav.js"></script>
+  <script src="field/render.js"></script>
+  <script src="display.js"></script>
+</body>
+</html>

@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Crowd Lab — Deep House</title>
+<style>
+  :root{
+    --bg:#05060c; --panel:#0b0e1a; --line:#1a2137;
+    --ink:#cfd8e6; --dim:#7f8aa6;
+    --teal:#35d0c0; --violet:#8a6cff; --blue:#2f6bff; --gold:#f2c94c;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  canvas{flex:1;min-height:0;display:block;width:100%;touch-action:none}
+
+  /* top bar: mode tabs + title */
+  #top{display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(#0b0e1a,#080a14)}
+  #top h1{margin:0;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600;white-space:nowrap}
+  #tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{padding:6px 12px;border:1px solid var(--line);border-radius:20px;background:transparent;color:var(--dim);
+    cursor:pointer;font-size:12px;letter-spacing:.04em;transition:.15s}
+  .tab:hover{color:var(--ink);border-color:#2a3352}
+  .tab.on{color:#061018;background:var(--teal);border-color:var(--teal);font-weight:600}
+  #badge{margin-left:auto;font-size:11px;color:var(--dim);letter-spacing:.06em;white-space:nowrap}
+  #badge b{color:var(--violet)}
+
+  /* the explainer line under the tabs */
+  #say{padding:8px 14px;font-size:13px;color:var(--dim);border-bottom:1px solid var(--line);min-height:34px}
+  #say b{color:var(--ink);font-weight:600}
+
+  /* bottom control dock — mobile-first: buttons on their own row, always visible */
+  #dock{border-top:1px solid var(--line);background:linear-gradient(#080a14,#0b0e1a);
+    padding:12px 14px;display:flex;flex-direction:column;gap:12px;flex-shrink:0}
+  .actions{display:flex;gap:10px}
+  .actions button{flex:1}
+  .sliders{display:flex;gap:18px;flex-wrap:wrap}
+  .ctl{display:flex;flex-direction:column;gap:5px;min-width:150px}
+  .ctl label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between}
+  .ctl label span{color:var(--teal);font-variant-numeric:tabular-nums}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;
+    background:#1c2540;outline:none;width:180px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--teal);cursor:pointer;box-shadow:0 0 8px rgba(53,208,192,.5)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--teal);cursor:pointer}
+  button.act{padding:13px 18px;border-radius:8px;border:1px solid var(--line);cursor:pointer;font-size:14px;
+    letter-spacing:.04em;background:#131a2e;color:var(--ink);transition:.15s}
+  button.act:hover{border-color:#2a3352;background:#182036}
+  button.reveal{background:var(--gold);color:#1a1400;border-color:var(--gold);font-weight:700}
+  button.reveal:hover{filter:brightness(1.08)}
+  .hint{position:absolute;left:14px;bottom:150px;font-size:12px;color:var(--dim);pointer-events:none;max-width:280px}
+  /* desktop: sliders left, buttons right — one row */
+  @media (min-width:641px){
+    #dock{flex-direction:row;align-items:center;gap:22px}
+    .sliders{order:1}
+    .actions{order:2;margin-left:auto}
+    .actions button{flex:0 0 auto}
+  }
+  @media (max-width:640px){
+    #badge{display:none}
+    .ctl{flex:1;min-width:120px}
+    input[type=range]{width:100%}
+    #hint{display:none}
+    #say{font-size:12px;min-height:0}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="top">
+    <h1>Crowd&nbsp;Lab</h1>
+    <div id="tabs">
+      <button class="tab on" data-m="consensus">Spiral Consensus</button>
+      <button class="tab" data-m="attractor">Human Attractor</button>
+      <button class="tab" data-m="wavelength">Wavelength</button>
+    </div>
+    <div id="badge">simulated crowd — one phone per voice, later · <b>the mechanic is real</b></div>
+  </div>
+  <div id="say"></div>
+  <canvas id="c"></canvas>
+  <div id="hint" class="hint"></div>
+  <div id="dock">
+    <div class="actions">
+      <button class="act" id="reroll">New crowd</button>
+      <button class="act reveal" id="go">Reveal</button>
+    </div>
+    <div class="sliders">
+      <div class="ctl">
+        <label>Crowd size <span id="nOut">18</span></label>
+        <input id="n" type="range" min="1" max="40" value="18">
+      </div>
+      <div class="ctl">
+        <label>Herd ↔ Independent <span id="aOut">50%</span></label>
+        <input id="a" type="range" min="0" max="100" value="50">
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+(function(){
+  var C = document.getElementById("c"), X = C.getContext("2d");
+  var DPR = Math.min(window.devicePixelRatio||1, 2), W=0, H=0;
+  function fit(){
+    var r = C.getBoundingClientRect();
+    W = r.width; H = r.height;
+    C.width = Math.round(W*DPR); C.height = Math.round(H*DPR);
+    X.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener("resize", fit);
+
+  var TAU = Math.PI*2;
+  // ── seeded rng ────────────────────────────────────────────────────────────
+  function mulberry32(s){return function(){s|=0;s=s+0x6D2B79F5|0;var t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  function gauss(rng){ // Box-Muller
+    var u=1-rng(),v=rng();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(TAU*v);
+  }
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function clamp(x,lo,hi){return x<lo?lo:x>hi?hi:x;}
+  // hue helper → hsl string
+  function hsl(h,s,l,al){return "hsla("+((h%360)+360)%360+","+s+"%,"+l+"%,"+(al==null?1:al)+")";}
+
+  // ── shared UI state ─────────────────────────────────────────────────────────
+  var UI = {
+    mode:"consensus",
+    n:18, align:0.5,       // align 0=herd, 1=independent
+    seed:(Math.random()*1e9)|0,
+    revealed:false,
+    pointer:null           // {x,y} in css px
+  };
+
+  var els = {
+    say:document.getElementById("say"), hint:document.getElementById("hint"),
+    n:document.getElementById("n"), a:document.getElementById("a"),
+    nOut:document.getElementById("nOut"), aOut:document.getElementById("aOut"),
+    go:document.getElementById("go"), reroll:document.getElementById("reroll"),
+    badge:document.getElementById("badge")
+  };
+
+  // ── mode registry ───────────────────────────────────────────────────────────
+  var MODES = {};
+  function mode(){return MODES[UI.mode];}
+
+  // ============================================================================
+  //  A phyllotaxis "sunflower" whose ORDER (0..1) is how tightly it packs.
+  //  order=1 → clean golden-angle sunflower; order=0 → a scattered cloud.
+  //  Shared by Consensus (order = crowd agreement) and Wavelength (order = σ).
+  // ============================================================================
+  var GOLD = Math.PI*(3 - Math.sqrt(5)); // 137.5° golden angle
+  function drawSunflower(cx,cy,rad,order,rot,seed){
+    var rng = mulberry32(seed);
+    var N = 340, jit = Math.pow(1-order, 1.4);
+    var scale = rad / Math.sqrt(N);
+    for(var i=0;i<N;i++){
+      var baseA = i*GOLD + rot;
+      var baseR = scale*Math.sqrt(i+0.5);
+      // disorder scatters angle a lot, radius a little
+      var a = baseA + gauss(rng)*jit*0.9;
+      var r = baseR*(1 + gauss(rng)*jit*0.28);
+      var x = cx + Math.cos(a)*r, y = cy + Math.sin(a)*r;
+      var t = i/N;
+      var hue = lerp(268, 46, order) + t*26;      // violet(chaos) → gold(order)
+      var sat = lerp(55, 92, order);
+      var lum = lerp(52, 62, order);
+      var dot = lerp(1.4, 2.6, order) * (1 - t*0.35);
+      X.beginPath();
+      X.fillStyle = hsl(hue,sat,lum, lerp(0.35,0.95,order)*(1-t*0.3));
+      X.arc(x,y,Math.max(0.6,dot),0,TAU); X.fill();
+    }
+  }
+
+  // small helper: draw a soft radial vignette bg
+  function ground(){
+    X.clearRect(0,0,W,H);
+    var g = X.createRadialGradient(W/2,H*0.5,0, W/2,H*0.5, Math.max(W,H)*0.7);
+    g.addColorStop(0,"#0a0f1f"); g.addColorStop(1,"#04050b");
+    X.fillStyle=g; X.fillRect(0,0,W,H);
+  }
+  function center(){return {x:W/2, y:H/2, r:Math.min(W,H)*0.34};}
+
+  // ============================================================================
+  //  MODE 1 — SPIRAL CONSENSUS
+  //  Everyone picks an angle. The crowd's AGREEMENT becomes symmetry.
+  //  You aim your own angle by moving the pointer; crowd clusters around a
+  //  hidden shared belief (tightness set by Herd↔Independent). Reveal computes
+  //  the circular mean; its resultant length = coherence = how ordered the
+  //  sunflower packs. "You are predicting people, not mathematics."
+  // ============================================================================
+  MODES.consensus = {
+    say:'<b>Spiral Consensus.</b> Everyone points somewhere on the ring — click to place yours. Agreement makes the flower; disagreement scatters it. <i>You are predicting people, not maths.</i>',
+    hint:'Click / tap the ring to lock your vote (drag to adjust). Then Reveal.',
+    build:function(){
+      var rng = mulberry32(UI.seed^0x9e3779b1);
+      this.belief = rng()*TAU;                 // crowd's hidden shared direction
+      this.angles = [];
+      var spread = lerp(0.12, 1.7, UI.align);  // radians std
+      for(var i=0;i<UI.n;i++) this.angles.push(this.belief + gauss(rng)*spread);
+      this.you = -Math.PI/2;
+      UI.revealed=false;
+    },
+    onDrag:function(x,y){ var c=center(); this.you=Math.atan2(y-c.y, x-c.x); },
+    stats:function(){
+      var all = this.angles.concat([this.you]);
+      var sc=0,ss=0;
+      for(var i=0;i<all.length;i++){sc+=Math.cos(all[i]);ss+=Math.sin(all[i]);}
+      var mean=Math.atan2(ss,sc), R=Math.hypot(sc,ss)/all.length;
+      return {mean:mean, R:R};
+    },
+    draw:function(){
+      ground();
+      var c=center();
+      var st = this.stats();
+
+      if(UI.revealed){
+        drawSunflower(c.x,c.y,c.r*1.05, st.R, st.mean, UI.seed);
+      }
+      // the ring
+      X.lineWidth=1.5; X.strokeStyle="rgba(120,140,190,.22)";
+      X.beginPath(); X.arc(c.x,c.y,c.r,0,TAU); X.stroke();
+
+      // crowd ticks
+      for(var i=0;i<this.angles.length;i++){
+        var a=this.angles[i];
+        tick(c,a,c.r,"rgba(200,215,255,.5)",6);
+      }
+      // your vote — a bold gold spoke from centre to ring, unmistakable
+      X.lineWidth=3; X.strokeStyle="#f2c94c"; X.globalAlpha=0.92;
+      X.beginPath(); X.moveTo(c.x,c.y);
+      X.lineTo(c.x+Math.cos(this.you)*c.r, c.y+Math.sin(this.you)*c.r); X.stroke();
+      X.globalAlpha=1;
+      tick(c,this.you,c.r,"#f2c94c",12,4);
+      // a dot on the ring at your angle + label
+      var yx=c.x+Math.cos(this.you)*c.r, yy=c.y+Math.sin(this.you)*c.r;
+      X.beginPath(); X.fillStyle="#f2c94c"; X.arc(yx,yy,5,0,TAU); X.fill();
+
+      // resultant arrow
+      var arrowLen = c.r*0.9*st.R;
+      X.lineWidth=3; X.strokeStyle=hsl(lerp(268,46,st.R),80,60);
+      X.beginPath(); X.moveTo(c.x,c.y);
+      X.lineTo(c.x+Math.cos(st.mean)*arrowLen, c.y+Math.sin(st.mean)*arrowLen); X.stroke();
+
+      // readout
+      label(c.x,c.y+c.r+34, (UI.revealed?"agreement ":"live agreement ")+Math.round(st.R*100)+"%",
+        UI.revealed? hsl(lerp(268,46,st.R),80,66):"#7f8aa6");
+      if(UI.revealed){
+        var word = st.R>0.8?"the room spoke as one":st.R>0.5?"a rough consensus":st.R>0.3?"a split room":"chaos — no shared angle";
+        label(c.x,c.y+c.r+56, word, "#cfd8e6");
+      }
+    }
+  };
+  function tick(c,a,r,color,len,w){
+    var x1=c.x+Math.cos(a)*(r-len), y1=c.y+Math.sin(a)*(r-len);
+    var x2=c.x+Math.cos(a)*(r+ (len>8?6:2)), y2=c.y+Math.sin(a)*(r+(len>8?6:2));
+    X.lineWidth=w||2; X.strokeStyle=color;
+    X.beginPath(); X.moveTo(x1,y1); X.lineTo(x2,y2); X.stroke();
+  }
+  function label(x,y,t,color){
+    X.fillStyle=color||"#cfd8e6"; X.textAlign="center"; X.font="13px -apple-system,Segoe UI,sans-serif";
+    X.fillText(t,x,y);
+  }
+
+  // ============================================================================
+  //  MODE 2 — HUMAN ATTRACTOR
+  //  A point drifts through a field. Every voice is an attractor pulling it.
+  //  You drag YOUR attractor; the crowd's cluster tightness is Herd↔Independent.
+  //  Nobody steers the point directly — the trajectory IS the aggregate.
+  // ============================================================================
+  MODES.attractor = {
+    say:'<b>Human Attractor.</b> A pen wanders the field, pulled by every voice at once — its path <i>is</i> the drawing. Drag your gold pull and the whole figure bends. <i>Nobody draws it alone; the crowd does.</i>',
+    hint:'Drag your gold pull (YOU). The glowing line is the pen, steered by everyone at once.',
+    build:function(){
+      var rng = mulberry32(UI.seed^0x51ed270b);
+      var c=center();
+      this.att=[];
+      // crowd cluster: herd=one tight clump, independent=spread across the field
+      var clumpX=lerp(c.x, W*(0.3+rng()*0.4), 1), clumpY=lerp(c.y, H*(0.3+rng()*0.4),1);
+      var spread = lerp(28, Math.min(W,H)*0.36, UI.align);
+      for(var i=0;i<UI.n;i++){
+        this.att.push({x:clumpX+gauss(rng)*spread, y:clumpY+gauss(rng)*spread, mine:false});
+      }
+      this.you={x:c.x+ c.r, y:c.y, mine:true};
+      // launch the pen into a WIDE orbit around the crowd's centroid → a figure that fills the field
+      var L=this.att.concat([this.you]), mx=0, my=0;
+      for(var k=0;k<L.length;k++){ mx+=L[k].x; my+=L[k].y; }
+      mx/=L.length; my/=L.length;
+      this.p={x:mx+240, y:my, vx:0, vy:-8}; this.trail=[];
+    },
+    all:function(){return this.att.concat([this.you]);},
+    step:function(){
+      var p=this.p, ax=0, ay=0, list=this.all();
+      for(var i=0;i<list.length;i++){
+        var dx=list[i].x-p.x, dy=list[i].y-p.y, d2=dx*dx+dy*dy+6000; // big soft core → near-harmonic → wide precessing orbits
+        var f=1.6/d2;
+        ax+=dx*f; ay+=dy*f;
+      }
+      // soft walls: a gentle inward push near the edge (no hard bounce that spikes the line)
+      var m=60;
+      if(p.x<m) ax+=(m-p.x)*0.0008; else if(p.x>W-m) ax-=(p.x-(W-m))*0.0008;
+      if(p.y<m) ay+=(m-p.y)*0.0008; else if(p.y>H-m) ay-=(p.y-(H-m))*0.0008;
+      p.vx=(p.vx+ax)*0.9997; p.vy=(p.vy+ay)*0.9997;
+      var sp=Math.hypot(p.vx,p.vy), cap=8; if(sp>cap){p.vx*=cap/sp;p.vy*=cap/sp;}
+      p.x+=p.vx; p.y+=p.vy;
+      p.x=clamp(p.x,2,W-2); p.y=clamp(p.y,2,H-2);
+      this.trail.push({x:p.x,y:p.y});
+      if(this.trail.length>2200) this.trail.shift();   // a long, persistent drawn line
+    },
+    draw:function(){
+      for(var s=0;s<2;s++) this.step();   // two sub-steps → a smoother, faster-drawn line
+      ground();                           // clear, then redraw the WHOLE accumulated path
+      var tr=this.trail;
+      X.lineJoin="round"; X.lineCap="round";
+      for(var i=1;i<tr.length;i++){
+        var t=i/tr.length;                // oldest → dim & thin, newest → bright & thick
+        X.beginPath();
+        X.strokeStyle=hsl(lerp(188,302,t),85,62, lerp(0.06,0.95,t));
+        X.lineWidth=lerp(0.5,2.8,t);
+        X.moveTo(tr[i-1].x,tr[i-1].y); X.lineTo(tr[i].x,tr[i].y); X.stroke();
+      }
+      // crowd attractors
+      var list=this.att;
+      for(var j=0;j<list.length;j++){
+        X.beginPath(); X.fillStyle="rgba(138,108,255,.75)";
+        X.arc(list[j].x,list[j].y,4,0,TAU); X.fill();
+        X.beginPath(); X.strokeStyle="rgba(138,108,255,.18)";
+        X.arc(list[j].x,list[j].y,11,0,TAU); X.stroke();
+      }
+      // your attractor
+      X.beginPath(); X.fillStyle="#f2c94c";
+      X.arc(this.you.x,this.you.y,8,0,TAU); X.fill();
+      X.beginPath(); X.strokeStyle="rgba(242,201,76,.35)"; X.lineWidth=2;
+      X.arc(this.you.x,this.you.y,16,0,TAU); X.stroke();
+      X.fillStyle="#f2c94c"; X.font="bold 11px Segoe UI"; X.textAlign="center";
+      X.fillText("YOU", this.you.x, this.you.y-24);
+      if(!touched){ // pulse until first interaction so the handle is obvious
+        var pr=22+Math.sin(Date.now()/280)*7;
+        X.strokeStyle="rgba(242,201,76,.55)"; X.lineWidth=2;
+        X.beginPath(); X.arc(this.you.x,this.you.y,pr,0,TAU); X.stroke();
+      }
+      // the point itself
+      X.beginPath(); X.fillStyle="#eafcff"; X.shadowColor="#35d0c0"; X.shadowBlur=14;
+      X.arc(this.p.x,this.p.y,4.5,0,TAU); X.fill(); X.shadowBlur=0;
+    },
+    onDrag:function(x,y){ this.you.x=x; this.you.y=y; }
+  };
+
+  // ============================================================================
+  //  MODE 3 — WAVELENGTH  (Chaos ←→ Order)
+  //  A hidden target sits on the dial. The crowd guesses where. The collective
+  //  guess drives σ: the closer the room gets, the more ORDER the spiral finds.
+  //  Reveal shows the target and how close the room came.
+  // ============================================================================
+  MODES.wavelength = {
+    say:'<b>Wavelength.</b> One hidden point sits on the <i>chaos → order</i> dial. Place your guess; the crowd guesses too. The closer the room lands, the more the spiral resolves.',
+    hint:'Click / drag on the dial to place your guess. Then Reveal.',
+    dialY:function(){return H*0.5;},
+    dialX0:function(){return W*0.14;}, dialX1:function(){return W*0.86;},
+    build:function(){
+      var rng = mulberry32(UI.seed^0x27d4eb2f);
+      this.target = 0.15+rng()*0.7;
+      this.belief = clamp(this.target + gauss(rng)*0.22, 0.05,0.95); // crowd is roughly-right-ish
+      var spread = lerp(0.03, 0.34, UI.align);
+      this.guesses=[];
+      for(var i=0;i<UI.n;i++) this.guesses.push(clamp(this.belief+gauss(rng)*spread,0,1));
+      this.you=0.5;
+      UI.revealed=false;
+    },
+    px:function(v){return lerp(this.dialX0(),this.dialX1(),v);},
+    mean:function(){
+      var s=this.you; for(var i=0;i<this.guesses.length;i++) s+=this.guesses[i];
+      return s/(this.guesses.length+1);
+    },
+    draw:function(){
+      ground();
+      var y=this.dialY(), m=this.mean();
+      var err = UI.revealed? Math.abs(m-this.target) : Math.abs(m-this.you)*0; // sigma only after reveal
+      var sigma = UI.revealed? clamp(1-err*2.2,0,1) : 0;
+
+      if(UI.revealed){
+        drawSunflower(W/2, y-H*0.16, Math.min(W,H)*0.20, sigma, UI.seed*0.001, UI.seed);
+      }
+
+      // dial track
+      var g=X.createLinearGradient(this.dialX0(),0,this.dialX1(),0);
+      g.addColorStop(0,"#8a6cff"); g.addColorStop(1,"#f2c94c");
+      X.strokeStyle=g; X.lineWidth=6; X.lineCap="round";
+      X.beginPath(); X.moveTo(this.dialX0(),y+H*0.14); X.lineTo(this.dialX1(),y+H*0.14); X.stroke();
+      X.fillStyle="#7f8aa6"; X.font="12px Segoe UI"; X.textAlign="left";
+      X.fillText("CHAOS", this.dialX0(), y+H*0.14+26);
+      X.textAlign="right"; X.fillText("ORDER", this.dialX1(), y+H*0.14+26);
+
+      // crowd guesses
+      for(var i=0;i<this.guesses.length;i++){
+        var gx=this.px(this.guesses[i]);
+        X.beginPath(); X.fillStyle="rgba(200,215,255,.55)";
+        X.arc(gx, y+H*0.14, 4,0,TAU); X.fill();
+      }
+      // collective marker
+      X.beginPath(); X.fillStyle="#35d0c0"; X.strokeStyle="#0a0f1f"; X.lineWidth=2;
+      X.arc(this.px(m), y+H*0.14, 8,0,TAU); X.fill(); X.stroke();
+      // your guess
+      X.save(); X.translate(this.px(this.you), y+H*0.14);
+      X.fillStyle="#f2c94c"; X.beginPath();
+      X.moveTo(0,-16); X.lineTo(6,-26); X.lineTo(-6,-26); X.closePath(); X.fill();
+      X.restore();
+
+      if(UI.revealed){
+        // reveal the hidden target
+        var tx=this.px(this.target);
+        X.strokeStyle="#ff6b8b"; X.lineWidth=2; X.setLineDash([4,4]);
+        X.beginPath(); X.moveTo(tx,y+H*0.14-40); X.lineTo(tx,y+H*0.14+40); X.stroke(); X.setLineDash([]);
+        X.fillStyle="#ff6b8b"; X.textAlign="center"; X.font="12px Segoe UI";
+        X.fillText("hidden target", tx, y+H*0.14-48);
+        label(W/2, y+H*0.14+62, "the room landed "+Math.round(err*100)+"% off  →  order "+Math.round(sigma*100)+"%",
+          hsl(lerp(268,46,sigma),80,66));
+      } else {
+        label(W/2, y+H*0.14+62, "collective guess — reveal to score the room", "#7f8aa6");
+      }
+    },
+    onDrag:function(x){
+      this.you = clamp((x-this.dialX0())/(this.dialX1()-this.dialX0()),0,1);
+    }
+  };
+
+  // ── wiring ──────────────────────────────────────────────────────────────────
+  function rebuild(){ mode().build(); syncSay(); }
+  function syncSay(){
+    els.say.innerHTML = mode().say;
+    els.hint.textContent = mode().hint;
+    // Reveal button is meaningless in the live attractor mode
+    els.go.style.display = (UI.mode==="attractor") ? "none":"";
+  }
+
+  document.querySelectorAll(".tab").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("on");});
+      b.classList.add("on");
+      UI.mode=b.dataset.m; UI.revealed=false; UI.pointer=null; touched=false;
+      rebuild();
+    });
+  });
+  els.n.addEventListener("input", function(){ UI.n=+els.n.value; els.nOut.textContent=UI.n; UI.revealed=false; mode().build(); });
+  els.a.addEventListener("input", function(){ UI.align=+els.a.value/100; els.aOut.textContent=els.a.value+"%"; UI.revealed=false; mode().build(); });
+  els.reroll.addEventListener("click", function(){ UI.seed=(Math.random()*1e9)|0; UI.revealed=false; mode().build(); });
+  els.go.addEventListener("click", function(){
+    if(UI.mode==="attractor") return;
+    UI.revealed=!UI.revealed;
+    els.go.textContent = UI.revealed?"Again":"Reveal";
+  });
+
+  // ── unified pointer input (mouse + touch + pen) with capture, so a drag never drops
+  var dragging=false, touched=false;
+  function relXY(e){var r=C.getBoundingClientRect();return {x:e.clientX-r.left, y:e.clientY-r.top};}
+  function onPointer(e){
+    var p=relXY(e); UI.pointer=p; touched=true;
+    var m=mode(); if(m.onDrag) m.onDrag(p.x,p.y);
+  }
+  C.addEventListener("pointerdown",function(e){
+    try{C.setPointerCapture(e.pointerId);}catch(_){}
+    dragging=true; onPointer(e); e.preventDefault();
+  });
+  // every mode is click/tap-to-place: only move while the pointer is held (drag to fine-tune)
+  C.addEventListener("pointermove",function(e){ if(dragging) onPointer(e); });
+  C.addEventListener("pointerup",  function(){ dragging=false; });
+  C.addEventListener("pointercancel",function(){ dragging=false; });
+
+  // ── loop ─────────────────────────────────────────────────────────────────────
+  fit(); rebuild();
+  (function loop(){ mode().draw(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>

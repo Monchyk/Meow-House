@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep House — Experiments</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  header { padding: 14px 20px 6px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: #b8a9e0; }
+  .sub { color: #6a7290; font-size: 12px; max-width: 900px; }
+  .controls { padding: 8px 20px 12px; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .controls label { color: #8a93b4; }
+  #sigma { width: 280px; vertical-align: middle; }
+  #sigval, #masterName { color: #f2c94c; }
+  input[type=range] { vertical-align: middle; }
+  select, button { background: #0c1020; color: #c8d2eb; border: 1px solid #222a44;
+    border-radius: 5px; padding: 4px 8px; font: inherit; }
+  button { cursor: pointer; }
+  button:hover { border-color: #4a5a8c; }
+  .banner { padding: 2px 20px 8px; color: #7a8299; font-size: 12px; }
+  .grid { display: grid; gap: 12px; padding: 6px 20px 24px; }
+  .tile { position: relative; background: #04050a; border: 1px solid #171a2b;
+    border-radius: 6px; overflow: hidden; }
+  .tile.master { border-color: #f2c94c; box-shadow: 0 0 0 1px #f2c94c inset; }
+  .tile canvas { display: block; width: 100%; }
+  .tag { position: absolute; top: 8px; left: 10px; font-size: 13px; color: #e6ebf7;
+    text-shadow: 0 1px 3px #000; pointer-events: none; }
+  .tag b { color: #f2c94c; }
+  .star { position: absolute; top: 6px; right: 8px; font-size: 15px; line-height: 1;
+    background: rgba(6,8,18,.7); border: 1px solid #222a44; border-radius: 5px;
+    padding: 3px 7px; cursor: pointer; color: #6a7290; }
+  .star:hover { color: #f2c94c; border-color: #4a5a8c; }
+  .tile.master .star { color: #f2c94c; border-color: #f2c94c; }
+  .sig { position: absolute; bottom: 8px; left: 10px; font-size: 11px; color: #7a8299;
+    text-shadow: 0 1px 3px #000; pointer-events: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Deep House — Experiments</h1>
+  <div class="sub">Every spiral in the gallery, live, side by side. Scrub σ (chaos ↔ order) or let it
+    auto-sweep to see each one breathe. Tap <b>★</b> on any tile to make it the <b>master</b>: every other
+    spiral then follows the master's σ instead of the global slider — one spiral becomes the baseline the
+    whole room resolves toward — and hitting order ripples outward from it. Tap the master's ★ again to
+    release. <b>Drag anywhere on the grid</b> to scrub σ by hand; hit <b>Space</b> to snap the whole room
+    to order with a springy bounce (a downbeat for the drop).</div>
+</header>
+<div class="controls">
+  <label>σ <input id="sigma" type="range" min="0" max="1" step="0.005" value="0.5"> <span id="sigval">0.50</span></label>
+  <label><input id="sweep" type="checkbox" checked> auto-sweep</label>
+  <label>speed <input id="rate" type="range" min="0.05" max="0.8" step="0.01" value="0.28" style="width:110px"></label>
+  <label>columns
+    <select id="cols"><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+  </label>
+  <label>height
+    <select id="ht"><option value="30">short</option><option value="42" selected>medium</option><option value="60">tall</option></select>
+  </label>
+  <label>σ mode
+    <select id="mode">
+      <option value="linked" selected>linked — all the same breath</option>
+      <option value="spread">spread — chaos→order across the grid</option>
+      <option value="free">free — each breathes on its own</option>
+    </select>
+  </label>
+  <label>palette
+    <select id="pal"></select>
+  </label>
+  <button id="release">release master</button>
+</div>
+<div class="banner">master: <span id="masterName">none</span> — <span id="masterHint">all tiles follow the global σ</span></div>
+<div class="grid" id="grid"></div>
+
+<script src="palettes.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var SYM = window.SYM, PALETTES = window.PALETTES;
+  var TITLES = SYM.EXHIBIT_TITLES;
+  function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+
+  // palette options: the 12-scheme Psychedelic Atlas (baked → hex arrays, what orderColor
+  // wants), else a sane default if palettes.js ever changes shape.
+  var PAL_LIST = [];
+  try {
+    if (PALETTES && typeof PALETTES.all === "function") {
+      PALETTES.all().forEach(function (s) {
+        if (s && s.colors && s.colors.length >= 2) PAL_LIST.push({ name: s.id || "scheme", cols: s.colors.slice(0, 5) });
+      });
+    }
+  } catch (e) { /* fall through to default */ }
+  if (!PAL_LIST.length) PAL_LIST = [{ name: "Deep House", cols: ["8E7CC3", "4A8B8C", "C77DBB", "F2C94C", "5B6CE8"] }];
+
+  var sigmaEl = document.getElementById("sigma"), sigval = document.getElementById("sigval");
+  var sweepEl = document.getElementById("sweep"), rateEl = document.getElementById("rate");
+  var colsEl = document.getElementById("cols"), htEl = document.getElementById("ht");
+  var modeEl = document.getElementById("mode");
+  var palEl = document.getElementById("pal"), releaseEl = document.getElementById("release");
+  var masterNameEl = document.getElementById("masterName"), masterHintEl = document.getElementById("masterHint");
+  var grid = document.getElementById("grid"), tiles = [];
+  var masterIdx = -1;
+
+  PAL_LIST.forEach(function (p, i) {
+    var o = document.createElement("option"); o.value = i; o.textContent = p.name; palEl.appendChild(o);
+  });
+  function palette() { return PAL_LIST[palEl.value | 0].cols; }
+
+  TITLES.forEach(function (title, i) {
+    var wrap = document.createElement("div"); wrap.className = "tile";
+    var cv = document.createElement("canvas");
+    var tag = document.createElement("div"); tag.className = "tag"; tag.innerHTML = "<b>" + (i + 1) + "</b> " + title;
+    var star = document.createElement("div"); star.className = "star"; star.textContent = "★"; star.title = "make master";
+    var sig = document.createElement("div"); sig.className = "sig";
+    wrap.appendChild(cv); wrap.appendChild(tag); wrap.appendChild(star); wrap.appendChild(sig);
+    grid.appendChild(wrap);
+    var t = { i: i, title: title, wrap: wrap, cv: cv, ctx: cv.getContext("2d"), sig: sig,
+              ex: SYM.makeExhibit(i), sigma: 0.5 };
+    star.addEventListener("click", function () { setMaster(masterIdx === i ? -1 : i); });
+    tiles.push(t);
+  });
+
+  function setMaster(i) {
+    masterIdx = i;
+    tiles.forEach(function (t) { t.wrap.classList.toggle("master", t.i === i); });
+    if (i < 0) { masterNameEl.textContent = "none"; masterHintEl.textContent = "all tiles follow the global σ"; }
+    else { masterNameEl.textContent = (i + 1) + " " + TITLES[i];
+      masterHintEl.textContent = "every other spiral resolves toward this one's σ"; }
+  }
+  releaseEl.addEventListener("click", function () { setMaster(-1); });
+
+  function layout() {
+    var cols = colsEl.value | 0, hvh = htEl.value | 0;
+    grid.style.gridTemplateColumns = "repeat(" + cols + ", 1fr)";
+    tiles.forEach(function (t) { t.cv.style.height = hvh + "vh"; });
+    fitAll();
+  }
+  function fitAll() {
+    tiles.forEach(function (t) {
+      var w = t.cv.clientWidth, h = t.cv.clientHeight;
+      if (t.cv.width !== w || t.cv.height !== h) { t.cv.width = w; t.cv.height = h; }
+    });
+  }
+  colsEl.addEventListener("change", layout);
+  htEl.addEventListener("change", layout);
+  window.addEventListener("resize", fitAll);
+  layout();
+
+  // ── "snap to order" — Space slams every tile toward σ=1 through a springy overshoot
+  //    and lets it settle. One shared spring; a visual downbeat you fire on the drop.
+  var snap = 0, snapV = 0, snapTarget = 0, snapReleaseAt = 0;
+  window.addEventListener("keydown", function (e) {
+    if (e.code === "Space" || e.key === " ") {
+      e.preventDefault(); snapTarget = 1; snapReleaseAt = performance.now() + 260;
+    }
+  });
+
+  // ── drag on the grid to scrub σ by hand (turns off auto-sweep while you hold) ──
+  var scrubbing = false;
+  function scrubFrom(ev) {
+    var r = grid.getBoundingClientRect();
+    var x = clamp((ev.clientX - r.left) / (r.width || 1), 0, 1);
+    sweepEl.checked = false; sigmaEl.value = x;
+  }
+  grid.addEventListener("pointerdown", function (ev) {
+    if (ev.target.closest && ev.target.closest(".star")) return;   // stars still toggle master
+    scrubbing = true; scrubFrom(ev); grid.setPointerCapture(ev.pointerId);
+  });
+  grid.addEventListener("pointermove", function (ev) { if (scrubbing) scrubFrom(ev); });
+  window.addEventListener("pointerup", function () { scrubbing = false; });
+
+  // grid position of a tile (for the ripple: followers near the master resolve first).
+  function rc(i) { var c = colsEl.value | 0; return [Math.floor(i / c), i % c]; }
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var pal = palette();
+
+    // spring for the snap-to-order pulse
+    if (now > snapReleaseAt) snapTarget = 0;
+    snapV += ((snapTarget - snap) * 95 - snapV * 9) * dt;
+    snap += snapV * dt;
+    var snapAmt = clamp(snap, 0, 1);
+
+    var globalSigma;
+    if (sweepEl.checked) {
+      globalSigma = 0.5 - 0.5 * Math.cos(now / 1000 * parseFloat(rateEl.value));
+      sigmaEl.value = globalSigma;
+    } else globalSigma = parseFloat(sigmaEl.value);
+    sigval.textContent = globalSigma.toFixed(2);
+
+    // three ways σ can vary across the grid:
+    //  linked — every tile shares the global σ (a chooser: all shapes at one breath). The
+    //           master ★ makes the others lag toward the master's σ, rippling out from it.
+    //  spread — σ runs low→high across the grid, so you see each shape at a DIFFERENT point
+    //           of its chaos→order range at once; the global slider scrolls the whole band.
+    //  free   — each tile breathes on its own rate + phase, so the grid never agrees.
+    var mode = modeEl.value, N = tiles.length;
+    var mpos = masterIdx >= 0 ? rc(masterIdx) : null;
+    var driveSigma = masterIdx >= 0 ? tiles[masterIdx].sigma : globalSigma;
+
+    tiles.forEach(function (t) {
+      var target, rate = 3.5;
+      if (mode === "spread") {
+        target = clamp((t.i / (N - 1) - 0.5) + globalSigma, 0, 1);
+      } else if (mode === "free") {
+        var ri = 0.10 + ((t.i * 37) % 20) / 20 * 0.28, pi = ((t.i * 53) % 100) / 100 * 6.2832;
+        target = 0.5 - 0.5 * Math.cos(now / 1000 * ri * 2 + pi); rate = 5;
+      } else if (masterIdx < 0 || t.i === masterIdx) {
+        target = globalSigma;
+      } else {
+        var p = rc(t.i), dist = Math.abs(p[0] - mpos[0]) + Math.abs(p[1] - mpos[1]);
+        target = driveSigma; rate = clamp(6 / (1 + dist * 0.8), 0.7, 6);
+      }
+      // the snap pulse biases every target toward order, springing through it
+      target = target + (1 - target) * snapAmt;
+      t.sigma += (target - t.sigma) * Math.min(1, dt * rate);
+      var sg = clamp(t.sigma, 0, 1);
+      t.ex.update(dt, sg * 2 - 1); t.ex.q = sg;
+      t.ex.draw(t.ctx, t.cv.width, t.cv.height, dt,
+        { alpha: 0.9, fade: 0.2, color: SYM.orderColor(sg, pal), tint: null });
+      t.sig.textContent = "σ " + sg.toFixed(2);
+    });
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

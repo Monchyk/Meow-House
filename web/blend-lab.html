@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep House — Blend Lab</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; background: #04050a; color: #c8d2eb;
+    font: 14px/1.4 "Cascadia Code", Consolas, monospace; }
+  header { padding: 14px 20px 4px; }
+  h1 { margin: 0 0 2px; font-size: 18px; font-weight: 600; color: #b8a9e0; }
+  .sub { color: #6a7290; font-size: 12px; max-width: 900px; }
+  .controls { padding: 8px 20px 10px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .controls label { color: #8a93b4; }
+  select, button { background: #0c1020; color: #c8d2eb; border: 1px solid #222a44; border-radius: 5px; padding: 5px 8px; font: inherit; cursor: pointer; }
+  #blend, #sigma { width: 210px; vertical-align: middle; }
+  #blendv, #sigval { color: #f2c94c; }
+  .stage { padding: 4px 20px 24px; }
+  canvas.main { display: block; width: 100%; height: 74vh; border-radius: 10px; background: #04050a; border: 1px solid #171a2b; }
+  .ab { display: flex; justify-content: space-between; color: #6a7290; font-size: 12px; margin-top: 6px; }
+  .ab b { color: #b8a9e0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Deep House — Blend Lab</h1>
+  <div class="sub">Blending the un-blendables. Any two of the 66 exhibits — even the sealed ones (Mandelbrot,
+    Life, the attractors) — turned to <b>stardust</b> that migrates from one shape into the other. Each is
+    rendered offscreen, its bright pixels sampled into a point cloud, and the clouds are interpolated. Drag
+    <b>blend</b> A↔B (or let it sweep), and σ for chaos↔order.</div>
+</header>
+<div class="controls">
+  <label>A <select id="pa"></select></label>
+  <label>B <select id="pb"></select></label>
+  <label><input id="anima" type="checkbox" checked> move A</label>
+  <label><input id="animb" type="checkbox" checked> move B</label>
+  <label>blend <input id="blend" type="range" min="0" max="1" step="0.005" value="0.5"> <span id="blendv">0.50</span></label>
+  <label><input id="bsweep" type="checkbox" checked> sweep</label>
+  <label>σ <input id="sigma" type="range" min="0" max="1" step="0.005" value="0.5"> <span id="sigval">0.50</span></label>
+  <label><input id="ssweep" type="checkbox" checked> σ sweep</label>
+  <label>palette <select id="pal"></select></label>
+  <button id="swap">⇄ swap</button>
+  <button id="shuffle">🎲 surprise me</button>
+</div>
+<div class="stage">
+  <canvas class="main" id="main"></canvas>
+  <div class="ab"><span>A: <b id="an"></b></span><span id="stat"></span><span>B: <b id="bn"></b></span></div>
+</div>
+
+<script src="palettes.js"></script>
+<script src="party.js"></script>
+<script src="viz/symmetry.js"></script>
+<script>
+(function () {
+  "use strict";
+  var TAU = Math.PI * 2;
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
+  var SYM = window.SYM, PALETTES = window.PALETTES;
+  var main = document.getElementById("main");
+  if (!SYM || !PALETTES) { document.querySelector(".sub").textContent = "could not load symmetry.js / palettes.js"; return; }
+  var EXH = SYM.EXHIBIT_TITLES, SCHEMES = PALETTES.all();
+
+  function hexToRgb(h) { var n = parseInt(h, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }; }
+  function ramp(cols) { return cols.map(hexToRgb); }
+  function sampleRamp(rr, t) { t = ((t % 1) + 1) % 1; var s = t * rr.length, i = Math.floor(s) % rr.length, n = (i + 1) % rr.length;
+    var f = s - Math.floor(s), sm = f * f * (3 - 2 * f);
+    return { r: lerp(rr[i].r, rr[n].r, sm) | 0, g: lerp(rr[i].g, rr[n].g, sm) | 0, b: lerp(rr[i].b, rr[n].b, sm) | 0 }; }
+
+  var paEl = document.getElementById("pa"), pbEl = document.getElementById("pb"), palEl = document.getElementById("pal");
+  var blendEl = document.getElementById("blend"), blendv = document.getElementById("blendv"), bsweep = document.getElementById("bsweep");
+  var sigmaEl = document.getElementById("sigma"), sigval = document.getElementById("sigval"), ssweep = document.getElementById("ssweep");
+  var anEl = document.getElementById("an"), bnEl = document.getElementById("bn"), statEl = document.getElementById("stat");
+  var animA = document.getElementById("anima"), animB = document.getElementById("animb");
+  EXH.forEach(function (t, i) { paEl.appendChild(opt(i, t)); pbEl.appendChild(opt(i, t)); });
+  paEl.value = EXH.indexOf("Mandelbrot set"); pbEl.value = EXH.indexOf("Game of Life");
+  SCHEMES.forEach(function (s, i) { palEl.appendChild(opt(i, s.id)); });
+  palEl.value = 1;
+  function opt(v, t) { var o = document.createElement("option"); o.value = v; o.textContent = t; return o; }
+  document.getElementById("swap").addEventListener("click", function () { var a = paEl.value; paEl.value = pbEl.value; pbEl.value = a; });
+  document.getElementById("shuffle").addEventListener("click", function () {
+    paEl.value = Math.floor(Math.random() * EXH.length); pbEl.value = Math.floor(Math.random() * EXH.length);
+  });
+
+  // offscreen buffers where each exhibit is rendered, then sampled into a point cloud.
+  var S = 120;
+  function buffer() { var c = document.createElement("canvas"); c.width = S; c.height = S; return { c: c, x: c.getContext("2d") }; }
+  var bufA = buffer(), bufB = buffer();
+  var instA = null, instB = null, curA = -1, curB = -1, needA = true, needB = true;
+  function ensureInstances() {
+    var a = paEl.value | 0, b = pbEl.value | 0;
+    if (a !== curA) { instA = SYM.makeExhibit(EXH[a]); curA = a; anEl.textContent = EXH[a]; needA = true; }
+    if (b !== curB) { instB = SYM.makeExhibit(EXH[b]); curB = b; bnEl.textContent = EXH[b]; needB = true; }
+  }
+
+  // sample a rendered buffer's bright pixels → N points sorted by angle (for coherent morphing).
+  function sampleCloud(bx, N) {
+    var img, data;
+    try { img = bx.getImageData(0, 0, S, S); data = img.data; } catch (e) { data = null; }
+    var pts = [];
+    if (data && data.length >= S * S * 4) {
+      for (var y = 1; y < S; y += 2) for (var x = 1; x < S; x += 2) {
+        var o = (y * S + x) * 4, lum = data[o] + data[o + 1] + data[o + 2];
+        if (lum > 150) pts.push([x - S / 2, y - S / 2]);
+      }
+    }
+    if (pts.length < 8) { for (var i = 0; i < N; i++) { var a = i / N * TAU; pts.push([Math.cos(a) * S * 0.3, Math.sin(a) * S * 0.3]); } }
+    pts.sort(function (p, q) { return Math.atan2(p[1], p[0]) - Math.atan2(q[1], q[0]); });
+    var out = new Array(N);
+    for (var k = 0; k < N; k++) { var p = pts[Math.floor(k / N * pts.length)]; out[k] = [p[0] / S, p[1] / S]; }   // unit space
+    return out;
+  }
+
+  var N = 1000, pos = new Float32Array(N * 2), cloudA = null, cloudB = null, fcount = 0;
+  for (var i = 0; i < N; i++) { pos[i * 2] = 0; pos[i * 2 + 1] = 0; }
+
+  function drawInto(buf, inst, sig, dt, palHex) {
+    if (!inst) return;
+    inst.update(dt, sig * 2 - 1); inst.q = sig;
+    inst.draw(buf.x, S, S, dt, { alpha: 1, fade: 0.16, color: SYM.orderColor(sig, palHex), tint: null });
+  }
+
+  var last = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now; fcount++;
+    ensureInstances();
+    var palHex = SCHEMES[palEl.value | 0].colors, rr = ramp(palHex);
+    var sig = ssweep.checked ? 0.5 - 0.5 * Math.cos(now / 1000 * 0.22) : parseFloat(sigmaEl.value);
+    if (ssweep.checked) sigmaEl.value = sig; sigval.textContent = sig.toFixed(2);
+    var blend = bsweep.checked ? 0.5 - 0.5 * Math.cos(now / 1000 * 0.16) : parseFloat(blendEl.value);
+    if (bsweep.checked) blendEl.value = blend; blendv.textContent = blend.toFixed(2);
+
+    // render each exhibit into its offscreen buffer, resample the clouds a few times a second
+    // A frozen exhibit does ZERO work: no redraw, no resample. Its buffer (and cloud) hold
+    // exactly as they were, so the particles settle into it and the frame gets cheap.
+    // needA/needB force one draw when the selection changes even while frozen.
+    var drewA = animA.checked || needA, drewB = animB.checked || needB;
+    if (drewA) drawInto(bufA, instA, sig, dt, palHex);
+    if (drewB) drawInto(bufB, instB, sig, dt, palHex);
+    needA = needB = false;
+    // resample only a side that actually moved (throttled), or once to seed it.
+    if (!cloudA || (drewA && fcount % 4 === 0)) cloudA = sampleCloud(bufA.x, N);
+    if (!cloudB || (drewB && fcount % 4 === 0)) cloudB = sampleCloud(bufB.x, N);
+
+    var w = main.width, h = main.height; if (main.clientWidth !== w || main.clientHeight !== h) { main.width = w = main.clientWidth; main.height = h = main.clientHeight; }
+    var ctx = main.getContext("2d"), cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.86;
+    ctx.fillStyle = "rgba(4,5,10,0.28)"; ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "lighter";
+    var ph = now / 1000 * 0.03, ease = Math.min(1, dt * 6);
+    for (var k = 0; k < N; k++) {
+      var tx = cx + lerp(cloudA[k][0], cloudB[k][0], blend) * R, ty = cy + lerp(cloudA[k][1], cloudB[k][1], blend) * R;
+      var px = pos[k * 2], py = pos[k * 2 + 1]; if (px === 0 && py === 0) { px = tx; py = ty; }
+      px += (tx - px) * ease; py += (ty - py) * ease; pos[k * 2] = px; pos[k * 2 + 1] = py;
+      var c = sampleRamp(rr, k / N + ph);
+      ctx.fillStyle = "rgba(" + c.r + "," + c.g + "," + c.b + ",0.6)";
+      ctx.fillRect(px, py, 1.6, 1.6);
+    }
+    ctx.globalCompositeOperation = "source-over";
+    statEl.textContent = N + " particles · " + (blend < 0.15 ? "→ A" : blend > 0.85 ? "→ B" : "mid-morph") +
+      (!animA.checked && !animB.checked ? " · both frozen" : "");
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

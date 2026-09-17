@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEEP HOUSE — colour field</title>
+  <style>
+    :root { --bg:#0a0d16; --panel:#121826; --line:rgba(150,170,220,0.16); --fg:#dce6fb; --dim:#8b9ac0; --accent:#5ad; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; background: var(--bg); color: var(--fg);
+      font: 15px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif; padding: 12px; max-width: 720px; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+    h1 { font-size: 17px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+    header .sub { font: 12px ui-monospace, monospace; color: var(--dim); }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+    h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); }
+    button { background: #1c2740; color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+      padding: 8px 12px; font-size: 14px; cursor: pointer; min-height: 40px; }
+    button:hover { border-color: var(--accent); }
+    button.ghost { background: transparent; color: var(--dim); min-height: 32px; padding: 4px 8px; }
+    .small { font-size: 12px; color: var(--dim); }
+
+    .banner { border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.45; }
+    .banner.bad  { background: rgba(224,138,138,0.14); border: 1px solid rgba(224,138,138,0.45); color: #ffc9c9; }
+    .banner.warn { background: rgba(255,216,144,0.12); border: 1px solid rgba(255,216,144,0.4); color: #ffe6b0; }
+
+    canvas { width: 100%; display: block; border-radius: 8px; background: #0c1120; touch-action: none; }
+    #say { min-height: 20px; font: 12px ui-monospace, monospace; color: var(--accent); margin-top: 8px; }
+
+    #presets { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+    .row .lab { flex: 0 0 150px; font-size: 13px; color: var(--dim); }
+    .row input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); height: 32px; }
+    .row input[type="color"] { width: 52px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+    .row .val { flex: 0 0 44px; font: 12px ui-monospace, monospace; color: var(--accent); text-align: right; }
+    .lampname { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 2px; margin: 0 6px 6px 0; }
+    .chip button { min-height: 30px; padding: 5px 9px; font-size: 13px; }
+    #saveRow { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    #saveName { background: #0e1424; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 14px; flex: 1; min-width: 120px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Colour field</h1>
+    <span class="sub">command lamps by position</span>
+  </header>
+
+  <div id="banner" class="banner" style="display:none"></div>
+
+  <section>
+    <h3>Roster presets</h3>
+    <div id="presets"></div>
+    <p class="small" style="margin:8px 0 0">
+      Drop a starting rig, then drag the points and tune. Each point is a coloured light
+      projected into the room; a lamp takes the additive blend of the points that reach it.
+      See <b style="color:var(--fg)">docs/COLORED-SHADOWS.md</b> for the roster.
+    </p>
+  </section>
+
+  <section>
+    <h3>The room, from above — dots are the predicted lamp colours</h3>
+    <canvas id="plan"></canvas>
+    <div id="say">tap the map to add a point, or pick a preset</div>
+  </section>
+
+  <section>
+    <h3>Selected point</h3>
+    <div id="inspector"></div>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap">
+      <button id="clear" class="ghost">clear all points</button>
+      <button id="refresh" class="ghost">refresh lamps</button>
+    </div>
+  </section>
+
+  <section>
+    <h3>Saved rigs</h3>
+    <div id="saved"></div>
+    <div id="saveRow">
+      <input id="saveName" placeholder="name this rig (e.g. shadow night)">
+      <button id="save">save current</button>
+    </div>
+  </section>
+
+  <script src="colorfield.js"></script>
+</body>
+</html>
