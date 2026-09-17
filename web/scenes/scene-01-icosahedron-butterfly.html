@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scene 01 — The Beating Treasure Chest</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#04050a; color:#dce7ff; font:13px/1.5 "Cascadia Code",Consolas,monospace; }
+    canvas { display:block; width:100%; height:100%; }
+    .identity { position:fixed; left:22px; top:20px; pointer-events:none; }
+    .identity b { display:block; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#abb4cd; }
+    .identity span { color:#69758e; font-size:11px; }
+    details { position:fixed; right:16px; top:16px; width:min(310px,calc(100vw - 32px)); max-height:calc(100vh - 155px); overflow:auto; background:#080d18e8; border:1px solid #a4b5e02b; border-radius:12px; }
+    summary { padding:12px 15px; cursor:pointer; color:#aebbd7; }
+    .panel { padding:0 15px 15px; display:grid; gap:12px; }
+    .row { display:grid; grid-template-columns:92px 1fr 36px; gap:7px; align-items:center; }
+    label { color:#9caac6; } output { text-align:right; color:#cab8ee; }
+    input[type=range] { width:100%; accent-color:#bca0e7; }
+    button,select { background:#101627; color:#cbd6ef; border:1px solid #a4b5e033; border-radius:7px; padding:7px 12px; font:inherit; cursor:pointer; }
+    button:hover,button:focus-visible { border-color:#bca0e7; }
+    #transport { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); width:min(720px,calc(100vw - 32px)); background:#080d18e6; border:1px solid #a4b5e026; border-radius:12px; padding:12px 16px; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    #clock { margin-left:auto; color:#8490aa; font-size:11px; }
+    #timeline { display:block; margin-top:12px; }
+    .hint { margin:0; color:#6d7994; font-size:11px; }
+    #error { position:fixed; top:45%; width:100%; text-align:center; color:#ff8ca2; }
+    [hidden] { display:none!important; }
+    @media(max-width:650px) { .identity { top:64px; font-size:10px; } details { top:10px; right:10px; } }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="A beating harmonograph grows inside an icosahedron, breaks it open and becomes a butterfly"></canvas>
+  <div class="identity"><b>The beating treasure chest</b><span id="stateLabel"></span></div>
+  <div id="error" role="alert"></div>
+  <details id="lab">
+    <summary>Scene controls</summary>
+    <div class="panel">
+      <div class="row"><label for="speed">speed</label><input id="speed" data-param="speed" type="range" min="0.1" max="1.5" step="0.05"><output></output></div>
+      <div class="row"><label for="growth">ico growth</label><input id="growth" data-param="growth" type="range" min="8" max="28" step="1"><output></output></div>
+      <div class="row"><label for="delay">follow delay</label><input id="delay" data-param="delay" type="range" min="1" max="7" step="0.5"><output></output></div>
+      <div class="row"><label for="cage">ico limit</label><input id="cage" data-param="cage" type="range" min="0.55" max="0.95" step="0.01"><output></output></div>
+      <div class="row"><label for="heart">heartbeat</label><input id="heart" data-param="heart" type="range" min="0" max="1" step="0.05"><output></output></div>
+      <div class="row"><label for="bpm">heart tempo</label><input id="bpm" data-param="bpm" type="range" min="24" max="80" step="1"><output></output></div>
+      <div class="row"><label for="spin">rotation</label><input id="spin" data-param="spin" type="range" min="0" max="0.4" step="0.01"><output></output></div>
+      <div class="row"><label for="zoom">zoom</label><input id="zoom" data-param="zoom" type="range" min="0.6" max="1.25" step="0.01"><output></output></div>
+      <div class="row"><label for="release">opening time</label><input id="release" data-param="release" type="range" min="4" max="16" step="0.5"><output></output></div>
+      <div class="row"><label for="glow">light</label><input id="glow" data-param="glow" type="range" min="0" max="1" step="0.05"><output></output></div>
+      <div class="row"><label for="hue">colour drift</label><input id="hue" data-param="hue" type="range" min="0" max="1" step="0.01"><output></output></div>
+      <label for="palette">Palette</label><select id="palette"></select>
+      <p class="hint">All timing follows scene speed. Scrub to hold a moment. Space: pause. H: hide controls.</p>
+    </div>
+  </details>
+  <div id="transport">
+    <div class="actions">
+      <button id="play" type="button">Pause</button>
+      <button id="restart" type="button">Restart</button>
+      <button id="contact" type="button">Before contact</button>
+      <button id="reveal" type="button">Butterfly</button>
+      <span id="clock"></span>
+    </div>
+    <input id="timeline" type="range" min="0" max="80" step="0.01" value="0" aria-label="Scene timeline">
+  </div>
+  <script src="../palettes.js"></script>
+  <script src="../viz/symmetry.js"></script>
+  <script src="./treasure-chest.js"></script>
+</body>
+</html>

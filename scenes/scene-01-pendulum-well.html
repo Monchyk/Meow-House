@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scene 01 — Pendulum Well</title>
+  <style>
+    :root { color-scheme: dark; --ink: #dbe7ff; --dim: #8791ad; --line: rgba(164, 181, 224, .2); }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #04050a; }
+    body { font: 14px/1.35 "Cascadia Code", Consolas, monospace; color: var(--ink); }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    .identity { position: fixed; left: 18px; bottom: 16px; pointer-events: none; opacity: .58; }
+    .identity b { display: block; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+    .identity span { color: var(--dim); font-size: 12px; }
+    details { position: fixed; z-index: 5; top: 12px; right: 12px; width: min(292px, calc(100vw - 24px));
+      border: 1px solid var(--line); border-radius: 12px; background: rgba(5, 8, 18, .82);
+      box-shadow: 0 16px 42px rgba(0, 0, 0, .36); backdrop-filter: blur(12px); }
+    summary { cursor: pointer; padding: 11px 13px; list-style: none; color: #b9c8ea; user-select: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "−"; float: right; color: var(--dim); }
+    details:not([open]) summary::after { content: "+"; }
+    .panel { display: grid; gap: 10px; padding: 4px 13px 13px; border-top: 1px solid var(--line); }
+    .row { display: grid; grid-template-columns: 78px 1fr 38px; gap: 8px; align-items: center; }
+    .row label { color: #aebbd7; }
+    output { color: #f2c94c; text-align: right; font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: #9c86ed; }
+    select, button { width: 100%; min-height: 34px; border: 1px solid var(--line); border-radius: 7px;
+      background: #0c1020; color: var(--ink); font: inherit; }
+    .toggle { display: flex; align-items: center; gap: 8px; color: var(--dim); }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .hint { margin: 0; color: #717b96; font-size: 12px; }
+    #error { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #ff8a9f; }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Harmonograph collapsing through a field of spiral circles"></canvas>
+  <div class="identity"><b>Pendulum Well</b><span>harmonograph × Doyle spiral × inward feedback</span></div>
+  <div id="error" role="alert"></div>
+
+  <details open>
+    <summary>Scene 01 · lab</summary>
+    <div class="panel">
+      <div class="row"><label for="chaos">chaos</label><input id="chaos" data-param="chaos" type="range" min="0" max="1" step="0.01"><output></output></div>
+      <div class="row"><label for="symmetry">symmetry</label><input id="symmetry" data-param="symmetry" type="range" min="0" max="1" step="0.01"><output></output></div>
+      <div class="row"><label for="collapse">collapse</label><input id="collapse" data-param="collapse" type="range" min="0" max="1" step="0.01"><output></output></div>
+      <div class="row"><label for="fusion">fusion</label><input id="fusion" data-param="fusion" type="range" min="0" max="1" step="0.01"><output></output></div>
+      <div class="row"><label for="feedback">feedback</label><input id="feedback" data-param="feedback" type="range" min="0" max="0.97" step="0.01"><output></output></div>
+      <div class="row"><label for="trail">trail fade</label><input id="trail" data-param="trail" type="range" min="0.01" max="0.32" step="0.01"><output></output></div>
+      <div class="row"><label for="intensity">intensity</label><input id="intensity" data-param="intensity" type="range" min="0.1" max="1" step="0.01"><output></output></div>
+      <div class="row"><label for="speed">speed</label><input id="speed" data-param="speed" type="range" min="0.05" max="1.8" step="0.01"><output></output></div>
+      <label>palette <select id="palette"></select></label>
+      <label class="toggle"><input id="cycle" type="checkbox" checked> origin → extreme → return</label>
+      <div class="actions"><button id="origin" type="button">origin</button><button id="extreme" type="button">extreme</button></div>
+      <p class="hint">Moving a slider pauses the cycle. Press H to hide/show the lab.</p>
+    </div>
+  </details>
+
+  <script src="../web/palettes.js"></script>
+  <script src="../web/viz/symmetry.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    var canvas = document.getElementById("stage"), ctx = canvas.getContext("2d");
+    var buffer = document.createElement("canvas"), bx = buffer.getContext("2d");
+    var panel = document.querySelector("details"), cycleEl = document.getElementById("cycle");
+    var paletteEl = document.getElementById("palette"), errorEl = document.getElementById("error");
+    var params = {
+      chaos: 0.28, symmetry: 0.42, collapse: 0.18, fusion: 0.58,
+      feedback: 0.78, trail: 0.12, intensity: 0.72, speed: 0.42
+    };
+    var origin = { chaos: 0.22, symmetry: 0.32, collapse: 0.08, fusion: 0.34, feedback: 0.72, trail: 0.15, intensity: 0.58, speed: 0.28 };
+    var extreme = { chaos: 0.68, symmetry: 0.82, collapse: 0.92, fusion: 0.88, feedback: 0.91, trail: 0.06, intensity: 0.9, speed: 0.72 };
+    var palettes = window.PALETTES ? window.PALETTES.all() : [];
+    var harm = window.SYM && window.SYM.makeExhibit("Harmonograph");
+    var doyle = window.SYM && window.SYM.makeExhibit("Doyle spiral");
+    var DPR = Math.min(1.5, window.devicePixelRatio || 1), last = performance.now(), elapsed = 0;
+
+    function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function smooth(t) { return t * t * (3 - 2 * t); }
+    function fit() {
+      var w = Math.max(2, Math.round(innerWidth * DPR)), h = Math.max(2, Math.round(innerHeight * DPR));
+      if (canvas.width === w && canvas.height === h) return;
+      canvas.width = buffer.width = w; canvas.height = buffer.height = h;
+      ctx.fillStyle = "#04050a"; ctx.fillRect(0, 0, w, h);
+      bx.fillStyle = "#04050a"; bx.fillRect(0, 0, w, h);
+    }
+    function syncControls() {
+      document.querySelectorAll("[data-param]").forEach(function (input) {
+        input.value = params[input.dataset.param];
+        input.nextElementSibling.value = Number(input.value).toFixed(2);
+      });
+    }
+    function applyPreset(values) {
+      Object.keys(values).forEach(function (key) { params[key] = values[key]; });
+      cycleEl.checked = false; syncControls();
+    }
+    document.querySelectorAll("[data-param]").forEach(function (input) {
+      input.addEventListener("input", function () {
+        params[input.dataset.param] = Number(input.value);
+        input.nextElementSibling.value = Number(input.value).toFixed(2);
+        cycleEl.checked = false;
+      });
+    });
+    palettes.forEach(function (p, i) {
+      var o = document.createElement("option"); o.value = i; o.textContent = p.id; paletteEl.appendChild(o);
+    });
+    paletteEl.value = String(Math.max(0, palettes.findIndex(function (p) { return p.id === "Cosmic Void"; })));
+    document.getElementById("origin").addEventListener("click", function () { applyPreset(origin); });
+    document.getElementById("extreme").addEventListener("click", function () { applyPreset(extreme); });
+    window.addEventListener("keydown", function (e) { if (e.key.toLowerCase() === "h") panel.hidden = !panel.hidden; });
+    window.addEventListener("resize", fit);
+    syncControls(); fit();
+
+    if (!ctx || !bx || !harm || !doyle || !palettes.length) {
+      errorEl.textContent = "Scene engine did not load."; return;
+    }
+
+    function render(now) {
+      var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; elapsed += dt;
+      var p = params;
+      var chaos = p.chaos, symmetry = p.symmetry, collapse = p.collapse, fusion = p.fusion;
+      if (cycleEl.checked) {
+        var journey = smooth(0.5 - 0.5 * Math.cos(elapsed * 0.13));
+        chaos = lerp(origin.chaos, extreme.chaos, Math.sin(journey * Math.PI));
+        symmetry = lerp(origin.symmetry, extreme.symmetry, journey);
+        collapse = lerp(origin.collapse, extreme.collapse, journey);
+        fusion = lerp(origin.fusion, extreme.fusion, journey);
+      }
+      var qH = clamp(symmetry - chaos * 0.48 + fusion * 0.18, 0, 1);
+      var qD = clamp(symmetry - chaos * 0.72 + collapse * 0.12, 0, 1);
+      var pal = palettes[paletteEl.value | 0].colors;
+      var w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2;
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(4,5,10," + p.trail + ")"; ctx.fillRect(0, 0, w, h);
+      if (p.feedback > 0.01) {
+        var inward = 1 - (0.002 + collapse * 0.012);
+        ctx.save(); ctx.globalAlpha = p.feedback;
+        ctx.translate(cx, cy); ctx.rotate((chaos - symmetry) * 0.0025); ctx.scale(inward, inward); ctx.translate(-cx, -cy);
+        ctx.drawImage(buffer, 0, 0); ctx.restore();
+      }
+
+      harm._t += dt * p.speed; doyle._t += dt * p.speed;
+      harm.q = qH; doyle.q = qD;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(elapsed * p.speed * (0.025 + chaos * 0.12));
+      var ds = lerp(1.04, 0.2, collapse) * lerp(1, 0.82, fusion);
+      ctx.scale(ds, ds); ctx.translate(-cx, -cy);
+      doyle.draw(ctx, w, h, dt, { fade: 0, alpha: p.intensity * lerp(0.82, 0.34, fusion), color: window.SYM.orderColor(qD, pal) });
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-elapsed * p.speed * lerp(0.015, 0.09, chaos));
+      var hs = lerp(0.72, 0.94, fusion) * lerp(1, 0.72, collapse);
+      ctx.scale(hs, hs); ctx.translate(-cx, -cy);
+      harm.draw(ctx, w, h, dt, { fade: 0, alpha: p.intensity * lerp(0.55, 1, fusion), color: window.SYM.orderColor(qH, pal) });
+      ctx.restore();
+
+      window.SYM.drawSuperfluidBloom(ctx, w, h, qH, window.SYM.orderColor(qH, pal), elapsed,
+        p.intensity * (0.16 + collapse * 0.38), collapse * 0.24, pal[3]);
+
+      bx.globalCompositeOperation = "copy"; bx.drawImage(canvas, 0, 0);
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  })();
+  </script>
+</body>
+</html>
