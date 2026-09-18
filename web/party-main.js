@@ -334,6 +334,12 @@
         var m; try { m = JSON.parse(ev.data); } catch (_) { return; }
         if (!m || m.from === "master") return;                     // ignore our own broadcasts
         if (m.type === "hello") { pub({ from: "master", type: "state", snap: PARTY.snapshot() }); }
+        // ── flow tab (web/flow.html): the dedicated flow tab owns the master tempo and
+        //    can hold the whole show. tempo = set bpm; hold/resume = freeze/continue the
+        //    increment in the loop below (phase kept, never reset — see flow.html). ──
+        else if (m.type === "tempo") { if (typeof m.bpm === "number" && isFinite(m.bpm)) PARTY.config.bpm = Math.max(0, Math.min(240, m.bpm)); }
+        else if (m.type === "hold") { held = true; }
+        else if (m.type === "resume") { held = false; }
         else if (m.type === "cmd") {
           // One filter line, the same rule every surface follows: a remote gesture
           // addressed to another owner is not ours to act on. Only REMOTE events carry
@@ -363,6 +369,7 @@
   }
 
   /* ── main loop ───────────────────────────────────────────────────────── */
+  var held = false;   // set true by a {type:"hold"} from the flow tab; gates the director dt to 0
   var lastT = performance.now();
   function loop(t) {
     var dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
@@ -372,7 +379,7 @@
     // private _ct, every _sub(dt) — so all 38 shapes slow together with no per-exhibit
     // edits. PARTY.tick takes the unscaled dt: it scales its own motion clocks and
     // deliberately keeps the business envelope on wall-clock.
-    director.draw(dt * PARTY.tempo());
+    director.draw(dt * (held ? 0 : PARTY.tempo()));   // held: freeze the increment (phase kept, no reset)
     pushLamps(t);
     attentionCue(t);
     updateHud();

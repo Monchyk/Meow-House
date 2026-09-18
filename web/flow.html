@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MEOW HOUSE — Flow</title>
+  <style>
+    :root {
+      --bg: #04050a; --ink: #cdd5ec; --dim: #8a93b0;
+      --purple: #bda7ff; --gold: #f2c94c; --green: #7dd3a0;
+      --card: rgba(8, 10, 20, 0.72); --edge: rgba(190, 170, 255, 0.22);
+    }
+    html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace; color: var(--ink); }
+
+    /* train-clock.js draws its own full-page #train-layer canvas (z-index 5). Everything
+       here sits above it. This page IS the train — not an overlay on a show. */
+
+    /* ── top readout: the numbers you pull this tab up to SEE ── */
+    #flow-readout {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+      display: flex; gap: clamp(16px, 5vw, 64px); align-items: baseline; justify-content: center;
+      padding: 22px 16px; pointer-events: none;
+      background: linear-gradient(180deg, rgba(4,5,10,0.85), rgba(4,5,10,0));
+    }
+    .read { text-align: center; }
+    .read output { display: block; font-weight: 600; line-height: 1;
+      font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+    .read label { display: block; margin-top: 7px; font-size: 11px; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--dim); }
+    .read.hero output { font-size: clamp(48px, 12vw, 128px); color: #fff; }
+    .read.hero label { color: var(--purple); }
+    .read.sub output { font-size: clamp(22px, 5vw, 46px); color: var(--ink); }
+
+    /* ── loop-progress: where we are in this lap ── */
+    #loopbar { position: fixed; left: 0; right: 0; bottom: 96px; z-index: 30; height: 3px;
+      background: rgba(190,170,255,0.12); }
+    #loopfill { height: 100%; width: 0%; background: var(--purple);
+      box-shadow: 0 0 12px var(--purple); transition: width 0.08s linear; }
+
+    /* ── bottom controls: spread + hold ── */
+    #flow-controls {
+      position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 32;
+      width: min(760px, calc(100vw - 24px));
+      display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; align-items: center;
+      padding: 14px 16px; background: var(--card); border: 1px solid var(--edge);
+      border-radius: 14px; backdrop-filter: blur(10px);
+    }
+    #holdBtn { grid-row: span 2; align-self: stretch; min-width: 108px;
+      font: 600 15px/1 inherit; letter-spacing: 0.04em; color: #fff5b8; cursor: pointer;
+      background: rgba(40,34,70,0.8); border: 1px solid rgba(242,201,76,0.4); border-radius: 12px;
+      padding: 0 18px; }
+    #holdBtn:hover { border-color: var(--gold); }
+    body.held #holdBtn { color: var(--green); border-color: var(--green); background: rgba(24,52,40,0.7); }
+    body.held #flow-controls { border-color: rgba(125,211,160,0.5); }
+    body.held #flow-readout .read.hero output { color: var(--green); }
+
+    #spreadwrap { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+      font-size: 12px; letter-spacing: 0.06em; color: var(--dim); }
+    #spread { width: 100%; accent-color: var(--purple); }
+    #spreadval { color: var(--ink); font-variant-numeric: tabular-nums; text-align: right; min-width: 52px; }
+    .hint { grid-column: 2; font-size: 11px; color: var(--dim); letter-spacing: 0.05em; }
+
+    /* ── show-not-connected preflight whisper ── */
+    #offline { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); z-index: 33;
+      font-size: 12px; letter-spacing: 0.06em; color: #ffd0d0;
+      background: rgba(60,18,24,0.7); border: 1px solid rgba(255,120,120,0.35);
+      padding: 6px 14px; border-radius: 999px; }
+    #offline[hidden] { display: none; }
+
+    /* ── toasts (train-clock.js writes here) ── */
+    #toasts { position: fixed; left: 0; right: 0; bottom: 108px; display: flex;
+      flex-direction: column-reverse; align-items: center; gap: 8px; pointer-events: none; z-index: 31; }
+    .toast { font: 500 clamp(13px, 2vh, 18px) inherit; letter-spacing: 0.06em; color: var(--ink);
+      background: rgba(10,14,26,0.55); border: 1px solid rgba(150,160,200,0.25);
+      padding: 6px 16px; border-radius: 999px; opacity: 0; transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease; }
+    .toast.show { opacity: 0.92; transform: translateY(0); }
+
+    /* ── train-badge (train-clock.js _mark writes here) ── */
+    #train-badge { position: fixed; right: 16px; top: 18px; z-index: 33;
+      font-size: 12px; letter-spacing: 0.04em; color: var(--dim);
+      background: rgba(8,10,20,0.55); border: 1px solid var(--edge); border-radius: 999px;
+      padding: 6px 12px; user-select: none; }
+    #train-badge.on { color: var(--purple); }
+    #train-badge.held { color: var(--green); border-color: var(--green); }
+
+    @media (max-width: 560px) {
+      #flow-controls { grid-template-columns: 1fr; }
+      #holdBtn { grid-row: auto; }
+      .hint { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header id="flow-readout">
+    <div class="read hero"><output id="bpm">—</output><label>bpm</label></div>
+    <div class="read sub"><output id="lap">—</output><label>lap · seconds</label></div>
+    <div class="read sub"><output id="loops">0</output><label>loops</label></div>
+    <div class="read sub"><output id="phase">0%</output><label>phase</label></div>
+  </header>
+
+  <div id="loopbar"><div id="loopfill"></div></div>
+
+  <div id="offline" hidden>show not connected — open player.html on the beamer</div>
+
+  <footer id="flow-controls">
+    <button id="holdBtn" type="button" aria-label="Hold or resume the whole show">❚❚ hold</button>
+    <label id="spreadwrap">spread <input id="spread" type="range" min="3" max="90" step="0.5" value="24"
+      aria-label="Spread — how much time to stretch one loop over"><output id="spreadval">24.0s</output></label>
+    <span class="hint">T&nbsp;hide the view · H&nbsp;hold the show · SPACE&nbsp;SPACE&nbsp;tap the pace · drag&nbsp;=&nbsp;spread</span>
+  </footer>
+
+  <div id="toasts"></div>
+  <div id="train-badge">◉ train</div>
+
+  <!-- The train engine + render. It boots on DOMContentLoaded, so the sink swap below
+       (a parser-blocking script that runs first) is in place before it emits any tempo. -->
+  <script src="train-clock.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    var T = window.TrainClock;
+    if (!T) return;
+    var $ = function (id) { return document.getElementById(id); };
+
+    // Broadcast to the show over serve.py's /party relay (POST /party/pub → SSE /party/sub).
+    function pub(obj) {
+      try {
+        fetch("/party/pub", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(obj) });
+      } catch (e) {}
+    }
+
+    // Replace the default (write-PARTY-in-page) sink with one that drives the show remotely.
+    // `from:"flow"` lets the show's `from==="master"` filter pass it, and lets our own
+    // /party/sub listener ignore the echo.
+    T.sink = {
+      tempo:  function (bpm) { pub({ from: "flow", type: "tempo", bpm: bpm }); },
+      lap:    function () { pub({ from: "flow", type: "tempo", bpm: T.bpmFor(T.period) }); }, // re-assert for late joiners
+      hold:   function () { pub({ from: "flow", type: "hold" }); },
+      resume: function () { pub({ from: "flow", type: "resume" }); }
+    };
+
+    var spread = $("spread"), spreadval = $("spreadval"), holdBtn = $("holdBtn");
+
+    // Live spread: set the lap length and broadcast tempo without spamming toasts on every drag tick.
+    spread.addEventListener("input", function () {
+      var p = Math.max(3, Math.min(90, +spread.value));
+      T.period = p; T.sink.tempo(T.bpmFor(p));
+    });
+    holdBtn.addEventListener("click", function () { T.toggleHold(); });
+
+    function f1(n) { return (+n).toFixed(1); }
+    setInterval(function () {
+      var bpm = T.bpmFor(T.period), ph = T.phase / (Math.PI * 2);
+      $("bpm").textContent = Math.round(bpm);
+      $("lap").textContent = f1(T.period);
+      $("loops").textContent = T.laps;
+      $("phase").textContent = Math.round(ph * 100) + "%";
+      $("loopfill").style.width = (ph * 100).toFixed(1) + "%";
+      spreadval.textContent = f1(T.period) + "s";
+      if (document.activeElement !== spread) spread.value = T.period;
+      holdBtn.textContent = T.held ? "▶ resume" : "❚❚ hold";
+      document.body.classList.toggle("held", T.held);
+    }, 120);
+
+    // Preflight: with no show subscribed, every broadcast is accepted and silently dropped
+    // (serve.py documents this exact "into the void" trap). Whisper if nobody's listening.
+    function checkShow() {
+      try {
+        fetch("/party/stat").then(function (r) { return r.json(); }).then(function (d) {
+          $("offline").hidden = !(d && d.subscribers === 0);
+        }).catch(function () {});
+      } catch (e) {}
+    }
+    checkShow();
+    setInterval(checkShow, 4000);
+  })();
+  </script>
+</body>
+</html>

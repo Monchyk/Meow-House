@@ -2,6 +2,11 @@
 
 _Creative capture, 2026-09-18 (K.). The physical timekeeper of the piece._
 
+> **MOVED 2026-09-18 → its own dedicated flow tab.** The train no longer draws on the show; it lives
+> on `web/flow.html`, owns the master clock, and drives `player.html` over the `/party` relay. `T`
+> hides the view (clock keeps running), `H` holds the whole show (phase kept, no reset). Full spec +
+> the source quotes behind the decision: `docs/PARTY-WEEKEND.md`.
+
 > **The engraving train BUILT 2026-09-18** — `web/train-clock.js`, loaded in `web/player.html`.
 > A single bright point loops a closed Lissajous path over the whole field and **engraves its
 > trail** — a self-contained pocket universe (the story train). **It runs itself on load — no
