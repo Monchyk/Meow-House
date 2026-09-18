@@ -1,0 +1,17 @@
+{
+  "_comment": "MeowParty scene registry. Add a scene = one entry. url is relative to web/ (serve root). duration = seconds before autoplay advances. The player runs ONE live scene at a time (snapshot-crossfade) to hold 60fps.",
+  "transitionMs": 900,
+  "defaultDuration": 45,
+  "scenes": [
+    {
+      "id": "treasure-chest",
+      "label": "The Beating Treasure Chest",
+      "url": "scenes/scene-01-icosahedron-butterfly.html",
+      "duration": 42
+    }
+  ],
+  "_candidates_todo": [
+    "COPY repo-root scenes/scene-01-pendulum-well.html -> web/scenes/ then add here",
+    "spirals.html / experiments.html / organisms.html — pick specific pretty presets (catalog phase, step 2)"
+  ]
+}

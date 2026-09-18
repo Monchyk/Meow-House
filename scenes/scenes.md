@@ -26,6 +26,8 @@ The earlier standalone study's oversized **SYNAPTIC VOID** control was a too-lit
 
 The MeowParty pass keeps Party's canonical Harmonograph renderer inside the rotating icosahedron and overlays the Spiral Mash butterfly equation as the entity's hidden form. The shared Party swing folds the wings in and out; the first 18 seconds grow the initially petite cage and entity into the ongoing ebb/flow. Near the ordered/grown end, coloured impulses travel across cage edges. Party's native zoom mode, palette, trails, bloom, organism mix, remote dashboard, keyboard and mic behavior are preserved rather than reimplemented.
 
+The colour layer now has a small ADSR envelope in the shared dashboard and in MeowParty's three-stripe drawer: attack, decay, sustain and release set brightness/bleed behaviour, with phase buttons for deliberate standstills. `colorBleed` adds scene-local frame clearing so old pixels do not wash the palette pale; it does not alter regular Party.
+
 **Scene 2**
 # Scene Forge Catalogue
 

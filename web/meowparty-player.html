@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeowParty — Scene Player</title>
+  <!--
+    THE GIG SURFACE. Cycles the handpicked scenes on the beamer, fullscreen, autoplay.
+
+    60fps DISCIPLINE (K.'s hard rule — it's all JS, layering kills fps):
+      ONE live scene runs at any instant. Transitions are a SNAPSHOT-CROSSFADE, not two
+      live iframes: freeze the outgoing scene to a still image, navigate the single iframe
+      to the incoming scene (the old rAF loop dies on navigation), then fade the frozen
+      still away to reveal the live incoming scene. Never two animation loops at once.
+
+    Registry: scenes.json (add a scene = one line). Scenes are reused AS-IS — the player
+    reaches into each same-origin iframe and injects CSS to hide its own controls (kiosk),
+    so nothing in your pretty scene pages is edited or regressed.
+
+    Controls:  → / Space-tap next · ← prev · P pause autoplay · F fullscreen · I fps HUD · C show cursor
+    Remote-ready: listens on /party/sub for {type:"cmd", scene:"next"|"prev"|<index>} (defensive, optional).
+
+    MUST be served over http (scenes need the server; snapshot needs same-origin).
+  -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #04050a; overflow: hidden; cursor: none; }
+    #frameWrap { position: fixed; inset: 0; }
+    iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #04050a; }
+    /* the frozen outgoing frame — a plain image/canvas, no animation loop */
+    #freeze { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover;
+              opacity: 0; pointer-events: none; z-index: 5; background: #04050a; transition: opacity 0ms linear; }
+    #hud { position: fixed; top: 10px; right: 12px; z-index: 20; display: none;
+           font: 12px/1.4 "Cascadia Code", Consolas, monospace; color: #9df6c8; white-space: pre;
+           background: rgba(6,9,18,.6); border: 1px solid rgba(140,160,210,.25); border-radius: 8px; padding: 7px 11px; }
+    #label { position: fixed; bottom: 7vh; left: 50%; transform: translateX(-50%); z-index: 20;
+             font: 500 clamp(13px,2vh,18px) "Cascadia Code", Consolas, monospace; letter-spacing: .06em;
+             color: #dfe6f5; background: rgba(10,14,26,.55); border: 1px solid rgba(150,160,200,.25);
+             border-radius: 999px; padding: 6px 16px; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
+    #label.show { opacity: .92; }
+    #err { position: fixed; top: 45%; width: 100%; text-align: center; z-index: 30; color: #ff8ca2;
+           font: 14px/1.5 "Cascadia Code", Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div id="frameWrap"><iframe id="stageFrame" title="MeowParty scene" allow="autoplay"></iframe></div>
+  <canvas id="freeze"></canvas>
+  <div id="hud"></div>
+  <div id="label"></div>
+  <div id="err"></div>
+
+  <script>
+  (function () {
+    "use strict";
+    var frame  = document.getElementById("stageFrame");
+    var freeze = document.getElementById("freeze");
+    var fctx   = freeze.getContext("2d");
+    var hud    = document.getElementById("hud");
+    var labelEl= document.getElementById("label");
+    var errEl  = document.getElementById("err");
+
+    var REG = { transitionMs: 900, defaultDuration: 45, scenes: [] };
+    var idx = 0, autoplay = true, advanceTimer = null, transitioning = false;
+
+    /* ── kiosk: hide a scene's own control chrome, same-origin CSS injection ── */
+    var KIOSK_CSS =
+      "details,summary,#transport,#lab,.panel,.identity,.hint,#clock,#error," +
+      "#meow-drawer,#meow-drawer-toggle,#toasts,#hud,.controls,.dash,#dash," +
+      "[data-param],[data-meow],input[type=range],select,button{" +
+      "display:none!important;visibility:hidden!important;pointer-events:none!important}" +
+      "html,body{cursor:none!important;overflow:hidden!important}";
+    function applyKiosk(doc) {
+      try {
+        var s = doc.getElementById("__meowKiosk");
+        if (!s) { s = doc.createElement("style"); s.id = "__meowKiosk"; doc.head.appendChild(s); }
+        s.textContent = KIOSK_CSS;
+      } catch (e) { /* cross-origin or not ready — ignore, scene still plays */ }
+    }
+
+    /* ── snapshot the current scene's canvas into #freeze (best-effort) ──
+       Returns true if a real frame was captured. On failure (blank WebGL buffer,
+       cross-origin, no canvas) we still leave #freeze filled black, so the fade
+       reads as a fade-through-black rather than a reload flash. */
+    function snapshotCurrent() {
+      freeze.width = window.innerWidth; freeze.height = window.innerHeight;
+      fctx.fillStyle = "#04050a"; fctx.fillRect(0, 0, freeze.width, freeze.height);
+      try {
+        var doc = frame.contentDocument;
+        var cv = doc && doc.querySelector("canvas");
+        if (cv && cv.width && cv.height) {
+          // object-fit: cover math so the still matches the live layout
+          var scale = Math.max(freeze.width / cv.width, freeze.height / cv.height);
+          var dw = cv.width * scale, dh = cv.height * scale;
+          fctx.drawImage(cv, (freeze.width - dw) / 2, (freeze.height - dh) / 2, dw, dh);
+          return true;
+        }
+      } catch (e) { /* tainted / cross-origin — keep black */ }
+      return false;
+    }
+
+    /* ── the ONE-live-loop transition ──────────────────────────────────────
+       1. freeze outgoing (still image, no loop)   2. navigate the single iframe
+       (old loop dies)   3. on load, settle a few frames, then fade the still away. */
+    function goto(n, dir) {
+      if (!REG.scenes.length || transitioning) return;
+      transitioning = true;
+      n = ((n % REG.scenes.length) + REG.scenes.length) % REG.scenes.length;
+      idx = n;
+      var scene = REG.scenes[idx];
+
+      var hadFrame = snapshotCurrent();
+      // show the still instantly on top (no transition), covering the swap
+      freeze.style.transition = "opacity 0ms linear";
+      freeze.style.opacity = "1";
+
+      // navigate the single iframe — this kills the outgoing rAF loop
+      var settle = null;
+      frame.onload = function () {
+        var doc = null;
+        try { doc = frame.contentDocument; } catch (e) {}
+        if (doc) applyKiosk(doc);
+        // let the incoming scene render a few frames UNDER the still before revealing
+        clearTimeout(settle);
+        settle = setTimeout(function () {
+          freeze.style.transition = "opacity " + REG.transitionMs + "ms ease";
+          freeze.style.opacity = "0";
+          setTimeout(function () { transitioning = false; }, REG.transitionMs + 40);
+        }, hadFrame ? 260 : 120);
+      };
+      // cache-bust so a re-selected scene restarts cleanly
+      frame.src = scene.url + (scene.url.indexOf("?") >= 0 ? "&" : "?") + "meow=" + Date.now();
+
+      showLabel(scene.label || scene.id);
+      armAutoplay();
+    }
+
+    function next() { goto(idx + 1, 1); }
+    function prev() { goto(idx - 1, -1); }
+
+    /* ── autoplay ──────────────────────────────────────────────────────── */
+    function armAutoplay() {
+      clearTimeout(advanceTimer);
+      if (!autoplay || REG.scenes.length < 2) return;
+      var d = (REG.scenes[idx].duration || REG.defaultDuration) * 1000;
+      advanceTimer = setTimeout(next, d);
+    }
+    function toggleAutoplay() {
+      autoplay = !autoplay;
+      if (autoplay) armAutoplay(); else clearTimeout(advanceTimer);
+      showLabel(autoplay ? "autoplay ▶" : "autoplay ‖");
+    }
+
+    /* ── label toast ───────────────────────────────────────────────────── */
+    var labelTimer = null;
+    function showLabel(txt) {
+      labelEl.textContent = txt; labelEl.classList.add("show");
+      clearTimeout(labelTimer);
+      labelTimer = setTimeout(function () { labelEl.classList.remove("show"); }, 2200);
+    }
+
+    /* ── fps HUD (K. confirms stable 60 on the beamer with this) ────────── */
+    var frames = 0, fps = 0, lastFpsT = performance.now(), hudOn = false;
+    function tickFps(now) {
+      frames++;
+      if (now - lastFpsT >= 500) { fps = Math.round(frames * 1000 / (now - lastFpsT)); frames = 0; lastFpsT = now; }
+      if (hudOn) {
+        var s = REG.scenes[idx] || {};
+        hud.textContent = "fps  : " + fps + (fps >= 58 ? "  ok" : fps >= 45 ? "  ~" : "  LOW") + "\n" +
+                          "scene: " + (idx + 1) + "/" + REG.scenes.length + "  " + (s.id || "-") + "\n" +
+                          "auto : " + (autoplay ? "on" : "off") + "\n" +
+                          "keys : →/␣ next · ← prev · P pause · F full · I hud";
+      }
+      requestAnimationFrame(tickFps);
+    }
+    requestAnimationFrame(tickFps);
+
+    /* ── input ─────────────────────────────────────────────────────────── */
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.code === "Space") { e.preventDefault(); next(); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); prev(); }
+      else if (e.key === "p" || e.key === "P") { toggleAutoplay(); }
+      else if (e.key === "f" || e.key === "F") {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+      }
+      else if (e.key === "i" || e.key === "I") { hudOn = !hudOn; hud.style.display = hudOn ? "block" : "none"; }
+      else if (e.key === "c" || e.key === "C") { document.body.style.cursor = document.body.style.cursor === "auto" ? "none" : "auto"; }
+    });
+    // tap anywhere = next (handy at the beamer without a keyboard)
+    document.addEventListener("click", function () { next(); });
+
+    /* ── remote-ready: listen on the party relay, defensively ──────────────
+       The phone dashboard / physical remote can drive scene changes by posting a
+       cmd on /party/sub. Entirely optional — if the route isn't there it just
+       retries quietly and the player keeps working on keyboard alone. */
+    function connectRemote(delay) {
+      var es;
+      try {
+        es = new EventSource("/party/sub");
+        es.onmessage = function (ev) {
+          var m; try { m = JSON.parse(ev.data); } catch (_) { return; }
+          if (!m || m.type !== "cmd" || m.scene == null) return;
+          if (m.scene === "next") next();
+          else if (m.scene === "prev") prev();
+          else if (typeof m.scene === "number") goto(m.scene, 1);
+        };
+        es.onerror = function () { try { es.close(); } catch (e) {} setTimeout(function () { connectRemote(Math.min((delay || 1000) * 2, 15000)); }, delay || 1000); };
+      } catch (e) { setTimeout(function () { connectRemote(Math.min((delay || 1000) * 2, 15000)); }, delay || 1000); }
+    }
+    connectRemote(1000);
+
+    /* ── boot: load the registry, start scene 0 ────────────────────────── */
+    fetch("scenes.json", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("scenes.json " + r.status); return r.json(); })
+      .then(function (j) {
+        REG.transitionMs    = j.transitionMs    || REG.transitionMs;
+        REG.defaultDuration = j.defaultDuration || REG.defaultDuration;
+        REG.scenes = (j.scenes || []).filter(function (s) { return s && s.url; });
+        if (!REG.scenes.length) throw new Error("no scenes in registry");
+        goto(0, 1);
+      })
+      .catch(function (e) {
+        errEl.textContent = "Player couldn't start: " + e.message +
+          "  —  serve over http (python controller/serve.py) and open http://127.0.0.1:8800/meowparty-player.html";
+      });
+  })();
+  </script>
+</body>
+</html>

@@ -505,6 +505,11 @@
       colorSpreadOrder: 1.0,   // widened default (2026-09-03, live-tuned): the ordered end
                                // was collapsing to ~one warm hue on screen; full spread keeps
                                // the palette diffusing across the shape at rest.
+      // MeowParty colour envelope. These are intentionally independent from geometry:
+      // they shape how brightness/bleed arrives, holds and leaves around the shared swing.
+      colorAttack: 0.70, colorDecay: 1.40, colorSustain: 0.52, colorRelease: 2.20,
+      colorBleed: 0.10,
+      colorEnvelopePhase: 2, // 0 attack · 1 decay · 2 sustain · 3 release
       // Neglect: the room notices being left alone. attention() ramps up after
       // `attentionAfter` seconds untouched, reaching full over `attentionRamp`.
       // Past `deathAfter` it has wound all the way down. Seconds.

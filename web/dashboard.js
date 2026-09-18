@@ -326,6 +326,13 @@
         '“driveUp/driveDown” are the hold-to-drive pair; anything else fires once. ' +
         'the remote sends the gesture, the room decides what it means</div></section>';
     }
+    h += '<section class="adsr"><h3>Colour envelope <em>MeowParty</em></h3>' +
+      '<div class="row adsr-buttons">' +
+      '<button data-cmd="colorPhase" data-phase="0">attack</button>' +
+      '<button data-cmd="colorPhase" data-phase="1">decay</button>' +
+      '<button data-cmd="colorPhase" data-phase="2">sustain</button>' +
+      '<button data-cmd="colorPhase" data-phase="3">release</button></div>' +
+      '<div class="small">these trigger the brightness/bleed envelope on MeowParty; the four ADSR sliders below shape each phase.</div></section>';
     h += '<section class="tuning">';
     TUNE.forEach(function (t) {
       var v = s.config[t.k]; if (v == null) return;
@@ -414,6 +421,10 @@
       var i = MOD_SRCS.indexOf(cur ? cur.src : null);
       var next = MOD_SRCS[(i + 1) % MOD_SRCS.length];
       cmd({ cmd: "patch", key: key, src: next, depth: cur ? cur.depth : 0.3 });
+      return;
+    }
+    if (b.getAttribute("data-cmd") === "colorPhase") {
+      cmd({ cmd: "setConfig", key: "colorEnvelopePhase", value: +b.getAttribute("data-phase") });
       return;
     }
     // Per-section factory reset. The group→keys mapping lives here for the same reason

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeowParty — the show so far</title>
+  <style>
+    :root{
+      --bg:#04050a; --ink:#dfe6f5; --dim:#8891a8; --line:rgba(150,160,200,.16);
+      --cyan:#7ddcff; --lav:#bda7ff; --mint:#9df6c8; --peach:#ffc9a8; --gold:#f2c94c;
+      --panel:rgba(10,14,26,.55); --forest:#0c1a14;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:
+      radial-gradient(120% 80% at 50% -10%, #0b1420 0%, var(--bg) 55%) fixed;
+      color:var(--ink);font:15px/1.55 "Cascadia Code",Consolas,ui-monospace,monospace;}
+    a{color:var(--cyan);text-decoration:none}
+    .wrap{max-width:940px;margin:0 auto;padding:min(9vh,72px) 20px 80px}
+    .kicker{letter-spacing:.32em;text-transform:uppercase;font-size:11px;color:var(--lav);margin:0 0 14px}
+    h1{font-size:clamp(34px,7vw,60px);line-height:1.02;margin:0 0 18px;font-weight:600;
+       background:linear-gradient(100deg,var(--mint),var(--cyan) 40%,var(--lav) 75%,var(--peach));
+       -webkit-background-clip:text;background-clip:text;color:transparent}
+    .lede{font-size:clamp(16px,2.4vw,20px);color:#c7cfe2;max-width:64ch;margin:0 0 34px}
+    .lede em{color:var(--gold);font-style:normal}
+    .cta{display:inline-flex;align-items:center;gap:12px;padding:16px 26px;border-radius:14px;
+      background:linear-gradient(100deg,rgba(125,220,255,.16),rgba(189,167,255,.16));
+      border:1px solid rgba(189,167,255,.4);color:#fff;font-size:17px;font-weight:600;
+      transition:.2s ease;backdrop-filter:blur(8px)}
+    .cta:hover{border-color:var(--gold);transform:translateY(-1px);box-shadow:0 10px 40px -12px rgba(125,220,255,.4)}
+    .cta small{font-weight:400;color:var(--dim);font-size:12px}
+    .keys{margin:16px 0 0;color:var(--dim);font-size:12.5px}
+    .keys b{color:var(--mint);font-weight:600}
+    section{margin-top:56px}
+    h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin:0 0 18px;
+       display:flex;align-items:center;gap:12px}
+    h2::after{content:"";flex:1;height:1px;background:var(--line)}
+    .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 17px}
+    .card h3{margin:0 0 6px;font-size:14.5px;color:#fff}
+    .card p{margin:0;color:var(--dim);font-size:13px;line-height:1.5}
+    .card .q{color:var(--cyan);font-style:italic}
+    .rank{display:flex;flex-direction:column;gap:7px}
+    .rank .row{display:flex;align-items:baseline;gap:12px;padding:9px 13px;background:var(--panel);
+      border:1px solid var(--line);border-radius:10px}
+    .rank .w{color:var(--gold);font-weight:700;min-width:2.2em}
+    .rank .n{color:#fff}.rank .t{color:var(--dim);font-size:12.5px;margin-left:auto;text-align:right}
+    .status{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+    .status>div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+    .status h3{margin:0 0 10px;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+    .built h3{color:var(--mint)} .live h3{color:var(--peach)}
+    .status ul{margin:0;padding-left:18px;color:var(--dim);font-size:13px;line-height:1.7}
+    .why{margin-top:56px;padding:22px 24px;border-radius:16px;border:1px solid rgba(189,167,255,.22);
+      background:linear-gradient(180deg,rgba(12,26,20,.5),rgba(10,14,26,.35))}
+    .why p{margin:0 0 10px;color:#c7cfe2}.why p:last-child{margin:0;color:var(--dim);font-size:13px}
+    .why b{color:var(--mint)}
+    footer{margin-top:50px;color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:18px}
+    @media(max-width:560px){.status{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="kicker">MeowParty · WHITE CAT CALLING · the show so far</p>
+    <h1>One organism.<br>You play its states.</h1>
+    <p class="lede">A cat scoots a spiral tunnel of lit tiles; the room breathes to a real toy
+      train's loop; someone walks in and the piece leans toward them. It's not a slideshow of
+      scenes — it's <em>one living state you dial</em>, from calm to chaos and back, and the scenes
+      fall out of where you take it.</p>
+
+    <a class="cta" href="player.html">▶ Open the show <small>player.html</small></a>
+    <p class="keys">Live controls — the <b>tempo train runs itself, slow</b> (a bright point engraving
+      a Lissajous — the room's crawling heartbeat) · <b>t</b> on / off (pull the train out) ·
+      <b>SPACE SPACE</b> set its pace · <b>[ ]</b> or <b>1–9</b> switch scene · <b>a</b> autoplay ·
+      <b>F11</b> fullscreen. Serve first: <code>python controller/serve.py</code></p>
+
+    <section>
+      <h2>The states you play</h2>
+      <div class="grid">
+        <div class="card"><h3>Calm · regulated</h3><p class="q">"calm, cool, starlike"</p><p>σ high, business low — the still ordered mandala.</p></div>
+        <div class="card"><h3>Dysregulated · chaos</h3><p class="q">"crazy or calm"</p><p>σ low, business high — off-kilter, churning.</p></div>
+        <div class="card"><h3>The swing</h3><p class="q">"symmetry to chaos… slow to a crawl… loop, reloop"</p><p>the move between, swept slow.</p></div>
+        <div class="card"><h3>The swell · breath</h3><p class="q">"a long swell that recedes and returns — it asks, it never shouts"</p><p>the train clock's body.</p></div>
+        <div class="card"><h3>Standstill → asking</h3><p>left alone it stills, flashes inward for attention, then dies out.</p></div>
+        <div class="card"><h3>The realisation</h3><p class="q">"reads as a realisation, not a glitch"</p><p>the slow earned resolve — "the whole piece."</p></div>
+        <div class="card"><h3>The mismatch</h3><p>surface vs hidden — the mask that slips. What's shown ≠ what's felt.</p></div>
+        <div class="card"><h3>The dive · void</h3><p class="q">"the tunnel keeps going into black"</p><p>going through, never arriving.</p></div>
+      </div>
+      <p class="keys">Full vocabulary + sources: <code>STATES.md</code> (open in the repo root)</p>
+    </section>
+
+    <section>
+      <h2>The wow menu · ranked, and mostly already built</h2>
+      <div class="rank">
+        <div class="row"><span class="w">10</span><span class="n">Mandelbrot / Julia c-orbit zoom</span><span class="t">the ceiling</span></div>
+        <div class="row"><span class="w">9</span><span class="n">Reaction–diffusion · the living texture</span><span class="t">blooms on the beat</span></div>
+        <div class="row"><span class="w">9</span><span class="n">Phyllotaxis angle-morph</span><span class="t">"most hypnotic move in the catalog"</span></div>
+        <div class="row"><span class="w">9</span><span class="n">Times-table cardioid sweep</span><span class="t">20 lines, instant</span></div>
+        <div class="row"><span class="w">9</span><span class="n">Kaleidoscope-fold</span><span class="t">the #1 amplifier — over anything</span></div>
+        <div class="row"><span class="w">8</span><span class="n">Log / golden spiral + tunnel</span><span class="t">"instant hypnosis / vortex"</span></div>
+      </div>
+      <p class="keys">The rule: <b>"woah = motion, symmetry, colour-cycling — not complexity."</b> ·
+        full list: <code>WOW-MOMENTS.md</code> (repo root)</p>
+    </section>
+
+    <section>
+      <h2>Where it stands</h2>
+      <div class="status">
+        <div class="built"><h3>◉ Built &amp; playable</h3>
+          <ul>
+            <li>Scene player — one canvas, live swap, 60fps (<code>player.html</code>)</li>
+            <li>Butterfly + Party baseline scenes</li>
+            <li>Train clock — SPACE breathes the whole room</li>
+            <li>Autoplay + clean scene disposal</li>
+          </ul>
+        </div>
+        <div class="live"><h3>○ For the live session</h3>
+          <ul>
+            <li>Handpick the states worth living in</li>
+            <li>Palette picker — live recolour (<code>PALETTE-PICKER-SPEC.md</code>)</li>
+            <li>Pull high-woah exhibits in as scenes</li>
+            <li>The story / the sequence — yours &amp; the friend's</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="why">
+      <p>The piece is at its best when someone steers it live, for people in the room.</p>
+      <p><b>mejulie</b> proves it — an organism that wasn't designed, she was <b>born from the
+        audience</b> the night Moses walked in and Julie was there. Nobody authored her. The show
+        is a record of what people make in it.</p>
+      <p>Connection reel + sources: WOW-MOMENTS.md · the night: projects/Deep-House/2026-09-03_watching-mejulie-arc.md</p>
+    </div>
+
+    <footer>Assembled 2026-09-18 · Meow House / MeowParty · every claim traceable to the chat history.</footer>
+  </div>
+</body>
+</html>

@@ -52,6 +52,7 @@
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this._partyCanvas = document.createElement("canvas");
+    this._partyCtx = this._partyCanvas.getContext("2d");
     this._party = new PartyDirector(this._partyCanvas, opts);
     this.zoom = true;
     this.substrate = null;
@@ -59,12 +60,70 @@
     this._touchPhase = -1;
     this._touchEdge = 0;
     this._scenePulse = 0;
+    this._envPhase = null;
+    this._envTime = 0;
+    this._envLevel = 0.52;
+    this._bindEnvelopeUI();
   }
 
   pop(amount) { this._party.pop(amount); }
 
+  _sendEnvelope(cmd) {
+    try { fetch("/party/pub", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: "dash", type: "cmd", cmd: cmd.cmd, key: cmd.key, value: cmd.value }) }); } catch (e) {}
+  }
+
+  _bindEnvelopeUI() {
+    var toggle = document.getElementById("meow-drawer-toggle");
+    var drawer = document.getElementById("meow-drawer");
+    if (toggle && drawer) toggle.addEventListener("click", function () {
+      var open = drawer.classList.toggle("open"); toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    var self = this;
+    var cfg = (root.PARTY && root.PARTY.config) || {};
+    document.querySelectorAll("[data-meow]").forEach(function (input) {
+      var initial = cfg[input.getAttribute("data-meow")];
+      if (initial != null) {
+        input.value = initial;
+        var initialOut = document.querySelector('[data-out="' + input.getAttribute("data-meow") + '"]');
+        if (initialOut) initialOut.textContent = (+initial).toFixed(2);
+      }
+      input.addEventListener("input", function () {
+        var key = input.getAttribute("data-meow"), value = +input.value;
+        self._sendEnvelope({ cmd: "setConfig", key: key, value: value });
+        var out = document.querySelector('[data-out="' + key + '"]'); if (out) out.textContent = value.toFixed(2);
+      });
+    });
+    document.querySelectorAll("[data-phase]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var phase = +button.getAttribute("data-phase");
+        self._sendEnvelope({ cmd: "setConfig", key: "colorEnvelopePhase", value: phase });
+        document.querySelectorAll("[data-phase]").forEach(function (b) { b.classList.toggle("active", b === button); });
+      });
+    });
+  }
+
+  _envelope(dt) {
+    var c = (root.PARTY && root.PARTY.config) || {};
+    var phase = clamp(Math.round(c.colorEnvelopePhase == null ? 2 : c.colorEnvelopePhase), 0, 3);
+    if (phase !== this._envPhase) { this._envPhase = phase; this._envTime = 0; }
+    this._envTime += dt;
+    var attack = Math.max(0.1, c.colorAttack == null ? 0.7 : c.colorAttack);
+    var decay = Math.max(0.1, c.colorDecay == null ? 1.4 : c.colorDecay);
+    var sustain = clamp(c.colorSustain == null ? 0.52 : c.colorSustain, 0, 1);
+    var release = Math.max(0.1, c.colorRelease == null ? 2.2 : c.colorRelease);
+    var p = this._envTime, v;
+    if (phase === 0) v = 0.08 + 0.92 * Math.min(1, p / attack);
+    else if (phase === 1) v = 1 - (1 - sustain) * Math.min(1, p / decay);
+    else if (phase === 3) v = sustain * Math.max(0, 1 - p / release);
+    else v = sustain;
+    this._envLevel = v;
+    return v;
+  }
+
   draw(dt) {
     this._meowT += dt;
+    var env = this._envelope(dt);
 
     /* Make the canonical Party renderer play Harmonograph, while keeping every other
        part of Party live: palette, swing, zoom, trails, bloom and organism mixer. */
@@ -76,6 +135,16 @@
       this._party.draw(dt);
     } finally {
       if (root.PARTY) root.PARTY.activeSpiralId = previous;
+    }
+
+    /* Scene-local extra clearing trims pixel bleed without changing regular Party. */
+    var bleed = clamp(root.PARTY && root.PARTY.config && root.PARTY.config.colorBleed != null
+      ? root.PARTY.config.colorBleed : 0.10, 0, 0.3);
+    if (bleed > 0) {
+      this._partyCtx.save();
+      this._partyCtx.fillStyle = "rgba(4,5,10," + bleed + ")";
+      this._partyCtx.fillRect(0, 0, this._partyCanvas.width, this._partyCanvas.height);
+      this._partyCtx.restore();
     }
 
     /* Party remains the renderer; we only place its finished frame inside the cage.
@@ -92,11 +161,16 @@
     ctx.fillStyle = "#04050a";
     ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = 0.98;
+    ctx.filter = "saturate(1.35) contrast(1.08)";
+    // The Party-rendered Harmonograph is the disguise, not the scene's brightest layer.
+    // Keep enough ink for its moving structure, but leave the cage, pulses and wing reveal
+    // as the luminous events.
+    ctx.globalAlpha = 0.28 + env * 0.42;
     ctx.drawImage(this._partyCanvas, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.filter = "none";
     ctx.restore();
 
-    this._drawScene(dt);
+    this._drawScene(dt, env);
   }
 
   _zoomPoint(x, y, w, h, z) {
@@ -118,7 +192,7 @@
     return [cx + (x - cx) * scale, cy + (y - cy) * scale, scale];
   }
 
-  _drawScene(dt) {
+  _drawScene(dt, env) {
     var ctx = this.ctx, w = this.canvas.width, h = this.canvas.height;
     if (!w || !h || !root.PARTY) return;
 
@@ -190,7 +264,7 @@
     ctx.lineWidth = 1.05 + reveal * 1.15;
     var loops = lerp(3, 6, reveal);
     for (var echo = 0; echo < 3; echo++) {
-      var echoAlpha = (0.05 + reveal * 0.32) * (1 - echo * 0.23);
+      var echoAlpha = (0.025 + reveal * 0.32) * (0.35 + env * 0.65) * (1 - echo * 0.23);
       ctx.strokeStyle = rgba(palette[(echo + 1) % palette.length] || color, echoAlpha);
       ctx.beginPath();
       for (var j = 0; j <= 620; j++) {
@@ -216,5 +290,16 @@
   }
   }
 
-  root.AmbientDirector = MeowPartyDirector;
+  /* Two ways to be hosted:
+   *   • With a registry present (player.html) — register as a switchable scene and
+   *     leave the real AmbientDirector alone, so the host and other scenes survive.
+   *   • Without one (meowparty.html standalone) — keep the historical behaviour and
+   *     become the host directly, so that page still boots on its own. */
+  if (root.SCENES && root.SCENES.register) {
+    root.SCENES.register("meowparty", "MeowParty · butterfly", function (canvas, opts) {
+      return new MeowPartyDirector(canvas, opts);
+    });
+  } else {
+    root.AmbientDirector = MeowPartyDirector;
+  }
 })(typeof window !== "undefined" ? window : globalThis);
