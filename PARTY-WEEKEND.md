@@ -111,6 +111,9 @@ ONE organism with a shared state; a scene is just what a state looks like on an 
 - Scene-player organism build committed in `ba84535` (the shared worktree folded it into the
   simultaneous mic-desk commit): promptable timelines, three-scene autoplay, Infinity Heart,
   Flower of Life, kiosk mode, state handoff, and atomic mathematical scene boundaries.
+- Restored the alternate butterfly branch as its own manual scene: `butterfly-wing-zoom`.
+  It enters either wing and exposes its vein/cell landscape. Infinity Heart remains the centred
+  branch; the curated three-scene autoplay playlist is unchanged.
 - **Mic beat-sync, reworked into a real instrument + standalone desk.** `web/mic-sync.js` (loaded on
   `player.html`/`party.html`/`meowparty.html`) now: FFT bass/mid/high split, a low-latency kick
   detector on the bass band, selectable drive source (full spectrum vs bass-only), a beat "punch"
