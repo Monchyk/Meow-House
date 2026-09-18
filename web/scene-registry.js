@@ -20,16 +20,18 @@
 
   root.SCENES = {
     /* factory: function(canvas, opts) -> director instance
-     * opts (optional): { duration } — autoplay dwell in seconds for this scene;
-     * falls back to the player's default dwell when absent. */
+     * opts: { duration, show }. show:true puts the scene in the curated autoplay
+     * story. Every registered scene remains available for manual selection. */
     register: function (id, label, factory, opts) {
       if (byId[id]) return;                 // first registration wins, idempotent
       var entry = { id: id, label: label, factory: factory,
-        duration: opts && opts.duration != null ? opts.duration : null };
+        duration: opts && opts.duration != null ? opts.duration : null,
+        show: !!(opts && opts.show) };
       byId[id] = entry;
       scenes.push(entry);
     },
     list: function () { return scenes.slice(); },
+    showList: function () { return scenes.filter(function (scene) { return scene.show; }); },
     get: function (id) { return byId[id] || null; },
     has: function (id) { return !!byId[id]; },
     firstId: function () { return scenes.length ? scenes[0].id : null; },

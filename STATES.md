@@ -32,7 +32,7 @@ states 1 and 2 — the single most-requested feel.
 > "one organism… **breathes slower and deeper — a long swell that recedes and returns. It asks; it
 > never shouts.**"
 — `web/party-main.js:201-208` (the canonical description, live in code)
-Handle: the tide/breath clock (and the **train clock** is its physical body). No zap, no beat-kick.
+Handle: the shared Party tide: business, tempo and the slow breath phase. No zap, no beat-kick.
 
 ### 5 · STANDSTILL → ASKING (neglect / attention)
 > leave it too long → it "comes to a **standstill**… it will literally try to **get your attention by
@@ -65,10 +65,27 @@ Handle: the Droste dive / infinite descent. The state of *going through*, not ar
 ## Why this changes the show
 The **player** cycles/dials **states**, not fixed scenes. A "scene" becomes just *this exhibit,
 seen in this state.* The three amplifiers you already built are the state controls:
-- **train clock** → drives the SWELL/BREATH and the SWING's tempo (state 3, 4)
+- **shared organism clock + business** → drive the SWELL/BREATH and the SWING (state 3, 4)
 - **palette picker** → the MISMATCH and colour of CALM vs CHAOTIC (state 1, 2, 7)
 - **kaleidoscope fold** → deepens SYMMETRY (state 1, 6)
 - σ / business → the CALM⇄CHAOS axis itself (states 1, 2, 3, 6)
 
 So the live session with the friend isn't "pick 8 scenes" — it's **"find the states worth living in,
 and the paths between them."** The scenes fall out of that.
+
+---
+
+## Current playable path (2026-09-18)
+
+The curated background-art loop currently has three director scenes:
+
+1. **The Beating Treasure Chest** — petite cage + disguised butterfly, growth, contact, release.
+2. **Butterfly · Infinity Heart** — centred dive into the overlap; two lemniscates emerge,
+   counter-spin and keep breathing from Party business.
+3. **Flower of Life** — the lemniscates phase-lock; one circle becomes the six-circle Seed of
+   Life, then the twelve-circle outer ring completes the 19-circle Flower of Life.
+
+The host swaps directors atomically on one canvas. It may hand off palette, business, life phase
+and parameters, but it never blends rendered scene layers. A valid boundary is mathematical:
+the outgoing final equation and incoming first equation must describe the same state. Trails and
+paint persistence belong inside the organism that produced them.

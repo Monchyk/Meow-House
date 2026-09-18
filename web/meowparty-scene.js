@@ -57,6 +57,11 @@
     this.zoom = true;
     this.substrate = null;
     this._meowT = 0;
+    this._storyTime = 0;
+    this._storyDuration = 60;
+    this._storyPlaying = true;
+    this._storySpeed = 1;
+    this._partyInfluence = 0.16;
     this._touchPhase = -1;
     this._touchEdge = 0;
     this._scenePulse = 0;
@@ -67,6 +72,58 @@
   }
 
   pop(amount) { this._party.pop(amount); }
+
+  getDuration() { return this._storyDuration; }
+  getTime() { return this._storyTime; }
+  seek(seconds) { this._storyTime = clamp(Number(seconds) || 0, 0, this._storyDuration); }
+  isPlaying() { return this._storyPlaying; }
+  setPlaying(playing) {
+    this._storyPlaying = !!playing;
+    if (this._storyPlaying && this._storyTime >= this._storyDuration) this._storyTime = 0;
+  }
+  getControls() {
+    return [
+      { key: "storySpeed", label: "story speed", min: 0.2, max: 2, step: 0.05 },
+      { key: "partyInfluence", label: "organic swing", min: 0, max: 0.45, step: 0.01 }
+    ];
+  }
+  getControlValue(key) {
+    if (key === "storySpeed") return this._storySpeed;
+    if (key === "partyInfluence") return this._partyInfluence;
+    return null;
+  }
+  setControl(key, value) {
+    if (key === "storySpeed") { this._storySpeed = clamp(Number(value), 0.2, 2); return true; }
+    if (key === "partyInfluence") { this._partyInfluence = clamp(Number(value), 0, 0.45); return true; }
+    return false;
+  }
+  serialize() {
+    return { scene: "meowparty", time: this._storyTime, life: this._meowT,
+      playing: this._storyPlaying, params: {
+        storySpeed: this._storySpeed, partyInfluence: this._partyInfluence
+      }};
+  }
+  restore(state) {
+    if (!state) return false;
+    if (state.time != null) this.seek(state.time);
+    if (state.life != null) this._meowT = Number(state.life) || 0;
+    if (state.playing != null) this._storyPlaying = !!state.playing;
+    if (state.params) {
+      if (state.params.storySpeed != null) this.setControl("storySpeed", state.params.storySpeed);
+      if (state.params.partyInfluence != null) this.setControl("partyInfluence", state.params.partyInfluence);
+    }
+    return true;
+  }
+  acceptHandoff(handoff) {
+    var state = handoff && handoff.state;
+    if (state && state.life != null) this._meowT = Number(state.life) || 0;
+  }
+  _storyQ() {
+    var progress = smooth(this._storyTime / this._storyDuration);
+    var tune = root.PARTY && root.PARTY.spiralTune ? root.PARTY.spiralTune() : 0;
+    var living = clamp((tune + 1) / 2, 0, 1);
+    return clamp(progress * (1 - this._partyInfluence) + living * this._partyInfluence, 0, 1);
+  }
 
   _sendEnvelope(cmd) {
     try { fetch("/party/pub", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -123,6 +180,10 @@
 
   draw(dt) {
     this._meowT += dt;
+    if (this._storyPlaying) {
+      this._storyTime = Math.min(this._storyDuration, this._storyTime + dt * this._storySpeed);
+      if (this._storyTime >= this._storyDuration) this._storyPlaying = false;
+    }
     var env = this._envelope(dt);
 
     /* Make the canonical Party renderer play Harmonograph, while keeping every other
@@ -151,9 +212,8 @@
        This makes both cage and Harmonograph genuinely petite on entry without cloning
        any of Party's trails, zoom, bloom or organism implementation. */
     var ctx = this.ctx, w = this.canvas.width, h = this.canvas.height;
-    var tune = root.PARTY && root.PARTY.spiralTune ? root.PARTY.spiralTune() : 0;
-    var q = clamp((tune + 1) / 2, 0, 1);
-    var intro = smooth(this._meowT / 18);
+    var q = this._storyQ();
+    var intro = smooth(this._storyTime / 18);
     var sceneScale = lerp(0.38, 1, intro) * lerp(0.94, 1, q);
     var dw = w * sceneScale, dh = h * sceneScale;
     ctx.save();
@@ -170,7 +230,7 @@
     ctx.filter = "none";
     ctx.restore();
 
-    this._drawScene(dt, env);
+    this._drawScene(dt, env, q);
   }
 
   _zoomPoint(x, y, w, h, z) {
@@ -192,14 +252,12 @@
     return [cx + (x - cx) * scale, cy + (y - cy) * scale, scale];
   }
 
-  _drawScene(dt, env) {
+  _drawScene(dt, env, q) {
     var ctx = this.ctx, w = this.canvas.width, h = this.canvas.height;
     if (!w || !h || !root.PARTY) return;
 
-    var tune = root.PARTY.spiralTune ? root.PARTY.spiralTune() : 0;
-    var q = clamp((tune + 1) / 2, 0, 1);
     var reveal = smooth((q - 0.34) / 0.62);
-    var intro = smooth(this._meowT / 18);
+    var intro = smooth(this._storyTime / 18);
     var active = root.PARTY.activeSpiral ? root.PARTY.activeSpiral() : null;
     var palette = active && active.palette ? active.palette : ["#7ddcff", "#d2a8ff", "#ff77ca", "#fff5b8"];
     var color = root.SYM && root.SYM.orderColor ? root.SYM.orderColor(q, palette) : palette[1];

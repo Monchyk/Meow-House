@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEEP HOUSE — mic desk</title>
+  <style>
+    :root { --bg:#0a0d16; --panel:#121826; --line:rgba(150,170,220,0.16); --fg:#dce6fb;
+            --dim:#8b9ac0; --accent:#5ad; --hot:#ff5a7a; --warn:#ffd890; --ok:#7fe0a0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg);
+      font: 15px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif; padding: 12px;
+      max-width: 640px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+    h1 { font-size: 17px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+    #conn { font: 12px ui-monospace, monospace; }
+    #conn.on { color: var(--ok); } #conn.off { color: #e08a8a; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px; margin-bottom: 12px; }
+    h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); }
+    .small { font-size: 12px; color: var(--dim); }
+    /* arm row */
+    .arm { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .arm button { flex: 0 0 auto; }
+    button { background: #1c2740; color: var(--fg); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 14px; font-size: 14px; cursor: pointer; min-height: 42px; }
+    button:hover { border-color: var(--accent); }
+    button.on { background: rgba(255,90,122,0.18); border-color: var(--hot); color: #ffc3cf; }
+    button.sel { border-color: var(--accent); color: #bfe6ff; }
+    .state { font: 600 13px ui-monospace, monospace; }
+    .state.live { color: var(--hot); } .state.idle { color: var(--dim); }
+    /* scope */
+    canvas { display: block; width: 100%; height: 120px; background: #0c1120; border-radius: 8px; }
+    .beat { display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+      background: #2a3350; margin-left: 4px; vertical-align: middle; transition: none; }
+    .beat.hit { background: var(--hot); box-shadow: 0 0 10px var(--hot); }
+    .nums { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
+      font: 12px ui-monospace, monospace; color: var(--dim); }
+    .nums b { color: var(--fg); font-weight: 600; }
+    /* faders */
+    .tune { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 12px 0; }
+    .tune span { flex: 0 0 120px; font-size: 13px; color: var(--fg); }
+    .tune input[type="range"] { flex: 1; min-width: 130px; accent-color: var(--accent); height: 32px; }
+    .tune em { flex: 0 0 56px; text-align: right; font: 12px ui-monospace, monospace; color: var(--fg); }
+    .tune .help { flex: 1 0 100%; margin: -2px 0 0; font-size: 11.5px; line-height: 1.35;
+      color: var(--dim); opacity: 0.85; }
+    .seg { display: inline-flex; gap: 6px; }
+    .wait { color: var(--dim); text-align: center; padding: 20px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mic Desk</h1>
+    <span id="conn" class="off">○ connecting…</span>
+  </header>
+
+  <section>
+    <div class="arm">
+      <button id="arm">arm mic</button>
+      <span id="state" class="state idle">idle</span>
+      <span class="small">arms the room mic on the display machine</span>
+    </div>
+  </section>
+
+  <section>
+    <h3>Scope <span id="beat" class="beat"></span>
+      <span id="bpm" style="float:right;font:700 15px ui-monospace,monospace;color:var(--warn);letter-spacing:0.04em;">— BPM</span></h3>
+    <canvas id="scope" width="600" height="120"></canvas>
+    <div class="nums">
+      <span>level <b id="nLevel">0</b></span>
+      <span>rms <b id="nRms">0</b></span>
+      <span>bass <b id="nBass">0</b></span>
+      <span>mid <b id="nMid">0</b></span>
+      <span>high <b id="nHigh">0</b></span>
+      <span>→ business <b id="nBiz">0</b></span>
+    </div>
+    <div class="small">green = level envelope (peak-held) · bars = bass / mid / high · dot flashes on a detected beat</div>
+  </section>
+
+  <section id="desk">
+    <h3>Parameters</h3>
+    <div id="controls"><p class="wait">arm the mic to tune it</p></div>
+  </section>
+
+  <script src="mic.js"></script>
+</body>
+</html>
